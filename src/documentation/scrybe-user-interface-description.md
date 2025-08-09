@@ -94,6 +94,8 @@ Supadata.ai - minimalist, high-contrast, and text-focused
 
 ## Typography
 
+- Type writer style font like in Supadata.ai - minimalist, high-contrast, and text-focused
+
 ### Headings & UI
 
 - Clean, highly legible sans-serif font (e.g., Inter, Manrope)
