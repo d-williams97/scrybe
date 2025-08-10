@@ -46,26 +46,39 @@ _Deferred_: Podcast-platform links, multi-language support, history list (DB), M
 
 ## 5. User Interface (MVP)
 
-+-------------------------------------------------------+
-| Scribe logo |
-|-------------------------------------------------------|
-| [URL input field] [Paste YouTube Link] |
-| or |
-| [ Drag-and-drop zone ] (.mp4 .mov .webm .mp3 .wav) |
-|-------------------------------------------------------|
-| Summary depth: (•) Brief ( ) In-depth |
-| Style: Academic | Casual | Bullet | Revision | Para |
-| Include timestamps: [x] Yes |
-|-------------------------------------------------------|
-| [ Summarize ▶ ] |
-|-------------------------------------------------------|
-| [Progress bar 0–100 % ▓▓▓░░] |
-|-------------------------------------------------------|
-| Transcript/Summary editor (textarea or rich text) |
-|-------------------------------------------------------|
-| [ Download .txt ] |
-+-------------------------------------------------------+
+Landing page layout and interactions:
 
-- Clean, responsive layout; dark/light theme.\*
-- Clickable timestamps: rendered as blue links inside notes
-- Responsiveness: drag-drop zone shrinks to button on mobile
++-----------------------------------------------------------------------+
+| top-left: [ Scribe logo ] |
+|-----------------------------------------------------------------------|
+| |
+| from videos to notes in seconds |
+| |
+| [ youtube ] [ upload ] |
+| (youtube is default) |
+|-----------------------------------------------------------------------|
+| IF youtube selected: |
+| [ Paste YouTube link here .................................... ] |
+| |
+| IF upload selected: |
+| [ Upload or drag a file here (.mp4 .mov .webm .mp3 .wav) ] |
+|-----------------------------------------------------------------------|
+| Options |
+| - Summary depth: (•) Brief ( ) In‑depth |
+| - Style: Academic | Casual | Bullet | Revision | Paragraph |
+| - Include timestamps: [x] Yes |
+|-----------------------------------------------------------------------|
+| [ Summarize ▶ ] |
+| [ Progress bar 0–100 % ▓▓▓░░ ] (appears after click) |
+|-----------------------------------------------------------------------|
+| After processing: |
+| Transcript/Summary editor (textarea or rich text) |
+| [ Download .txt ] |
++-----------------------------------------------------------------------+
+
+- Minimalist, mostly monochrome theme with typewriter-inspired typography; light and dark modes supported.
+- Two small, centered input-mode buttons toggle between YouTube URL and file upload. Defaults to YouTube.
+- Options panel appears below the chosen input.
+- Progress bar appears only after the Summarize action begins.
+- Clickable timestamps are rendered as blue links in the UI (not in the downloaded file).
+- Responsive: on mobile, the drag‑and‑drop area becomes a single Upload button.
