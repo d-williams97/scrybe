@@ -1,8 +1,8 @@
-# Product Requirements Document – **Scribe** (v 0.1)
+# Product Requirements Document – **Scrybe** (v 0.1)
 
 ## 1. Elevator Pitch
 
-Scribe lets anyone paste a YouTube URL or drag-and-drop a local audio/video file (≤ 20 min, English) and instantly receive AI-generated notes. Users choose summary depth (brief or in-depth), style (academic, casual, bullet points, revision notes, paragraph), and whether to include clickable timestamps. Notes are editable on-screen and downloadable as plain text, helping learners decide quickly if full content deserves their time.
+Scrybe lets anyone paste a YouTube URL or drag-and-drop a local audio/video file (≤ 20 min, English) and instantly receive AI-generated notes. Users choose summary depth (brief or in-depth), style (academic, casual, bullet points, revision notes, paragraph), and whether to include clickable timestamps. Notes are editable on-screen and downloadable as plain text, helping learners decide quickly if full content deserves their time.
 
 ---
 

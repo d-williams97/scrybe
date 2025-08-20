@@ -1,6 +1,3 @@
-@import "tailwindcss";
-@import "tw-animate-css";
-
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -140,20 +137,13 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
   }
-
+  
   .glow-card::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -2px;
     padding: 2px;
-    background: linear-gradient(
-      45deg,
-      #ff006e,
-      #8b5cf6,
-      #06ffa5,
-      #00d4ff,
-      #ff006e
-    );
+    background: linear-gradient(45deg, #ff006e, #8b5cf6, #06ffa5, #00d4ff, #ff006e);
     border-radius: inherit;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
@@ -161,30 +151,25 @@
     opacity: 0.8;
     filter: blur(8px);
   }
-
+  
   .glow-card-intense {
     position: relative;
     background: #000000;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-lg);
-    box-shadow: 0 0 20px rgba(255, 0, 110, 0.3),
-      0 0 40px rgba(139, 92, 246, 0.3), 0 0 60px rgba(6, 255, 165, 0.3),
+    box-shadow: 
+      0 0 20px rgba(255, 0, 110, 0.3),
+      0 0 40px rgba(139, 92, 246, 0.3),
+      0 0 60px rgba(6, 255, 165, 0.3),
       0 0 80px rgba(0, 212, 255, 0.3);
   }
-
+  
   .glow-card-intense::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -3px;
     padding: 3px;
-    background: linear-gradient(
-      45deg,
-      #ff006e,
-      #8b5cf6,
-      #06ffa5,
-      #00d4ff,
-      #ff006e
-    );
+    background: linear-gradient(45deg, #ff006e, #8b5cf6, #06ffa5, #00d4ff, #ff006e);
     background-size: 400% 400%;
     border-radius: inherit;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -200,20 +185,13 @@
     position: relative;
     border-radius: var(--radius-lg);
   }
-
+  
   .glow-input::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -2px;
     padding: 2px;
-    background: linear-gradient(
-      45deg,
-      #ff006e,
-      #8b5cf6,
-      #06ffa5,
-      #00d4ff,
-      #ff006e
-    );
+    background: linear-gradient(45deg, #ff006e, #8b5cf6, #06ffa5, #00d4ff, #ff006e);
     border-radius: inherit;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
@@ -226,20 +204,13 @@
     position: relative;
     border-radius: var(--radius-lg);
   }
-
+  
   .glow-dropzone::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -2px;
     padding: 2px;
-    background: linear-gradient(
-      45deg,
-      #ff006e,
-      #8b5cf6,
-      #06ffa5,
-      #00d4ff,
-      #ff006e
-    );
+    background: linear-gradient(45deg, #ff006e, #8b5cf6, #06ffa5, #00d4ff, #ff006e);
     border-radius: inherit;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
@@ -255,32 +226,24 @@
     border-radius: var(--radius-lg);
     overflow: hidden;
   }
-
+  
   .rainbow-progress::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: -1px;
     padding: 1px;
-    background: linear-gradient(
-      45deg,
-      #ff006e,
-      #8b5cf6,
-      #06ffa5,
-      #00d4ff,
-      #ff006e
-    );
+    background: linear-gradient(45deg, #ff006e, #8b5cf6, #06ffa5, #00d4ff, #ff006e);
     border-radius: inherit;
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: exclude;
     z-index: -1;
   }
-
+  
   .rainbow-progress-fill {
-    background: linear-gradient(
-      90deg,
-      rgba(255, 0, 110, 0.7),
-      rgba(139, 92, 246, 0.7),
-      rgba(6, 255, 165, 0.7),
+    background: linear-gradient(90deg, 
+      rgba(255, 0, 110, 0.7), 
+      rgba(139, 92, 246, 0.7), 
+      rgba(6, 255, 165, 0.7), 
       rgba(0, 212, 255, 0.7)
     );
     border-radius: var(--radius-lg);
@@ -293,35 +256,29 @@
     position: relative;
     min-height: 100vh;
   }
-
+  
   .viewport-glow::after {
-    content: "";
+    content: '';
     position: absolute;
     bottom: -150px;
     left: 50%;
     transform: translateX(-50%);
     width: 200%;
     height: 400px;
-    background: radial-gradient(
-      ellipse 180% 100% at center 80%,
-      rgba(6, 255, 165, 0.2) 0%,
-      rgba(0, 212, 255, 0.18) 20%,
-      rgba(139, 92, 246, 0.15) 40%,
-      rgba(255, 0, 110, 0.12) 60%,
-      rgba(139, 92, 246, 0.08) 80%,
-      transparent 100%
-    );
+    background: radial-gradient(ellipse 180% 100% at center 80%, 
+      rgba(6, 255, 165, 0.20) 0%, 
+      rgba(0, 212, 255, 0.18) 20%, 
+      rgba(139, 92, 246, 0.15) 40%, 
+      rgba(255, 0, 110, 0.12) 60%, 
+      rgba(139, 92, 246, 0.08) 80%, 
+      transparent 100%);
     pointer-events: none;
     z-index: 0;
   }
-
+  
   @keyframes rainbow-glow {
-    0% {
-      background-position: 0% 50%;
-    }
-    100% {
-      background-position: 100% 50%;
-    }
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
   }
 }
 

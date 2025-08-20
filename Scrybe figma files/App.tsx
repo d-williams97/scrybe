@@ -1,12 +1,12 @@
-"use client";
-
-import React, { useState } from "react";
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
+import { useState } from "react";
+import { Button } from "./components/ui/button";
+import { Input } from "./components/ui/input";
+import { Checkbox } from "./components/ui/checkbox";
+import { Textarea } from "./components/ui/textarea";
+import { Card } from "./components/ui/card";
+import { Progress } from "./components/ui/progress";
 import { Upload, Play } from "lucide-react";
+import scrybeLogoUrl from "figma:asset/0ec03314ef43b42a2d4c4fbc00d2fc2cfad44a8c.png";
 
 type InputMode = "youtube" | "upload";
 type SummaryDepth = "brief" | "in-depth";
@@ -17,12 +17,15 @@ type Style =
   | "revision-notes"
   | "paragraph";
 
-export default function Home() {
-  const [inputMode, setInputMode] = useState<InputMode>("youtube");
+export default function App() {
+  const [inputMode, setInputMode] =
+    useState<InputMode>("upload");
   const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [summaryDepth, setSummaryDepth] = useState<SummaryDepth>("brief");
+  const [summaryDepth, setSummaryDepth] =
+    useState<SummaryDepth>("brief");
   const [style, setStyle] = useState<Style>("academic");
-  const [includeTimestamps, setIncludeTimestamps] = useState(true);
+  const [includeTimestamps, setIncludeTimestamps] =
+    useState(true);
   const [generatedNotes, setGeneratedNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -34,16 +37,21 @@ export default function Home() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    // hook up file logic if needed
+    // Handle file drop logic here
   };
 
   const handleSummarize = async () => {
+    // Check if there's input
     if (inputMode === "youtube" && !youtubeUrl.trim()) return;
+    if (inputMode === "upload") {
+      // In a real app, you'd check if a file was uploaded
+    }
 
     setIsLoading(true);
     setProgress(0);
     setShowNotes(false);
 
+    // Simulate progress
     const progressInterval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
@@ -54,28 +62,16 @@ export default function Home() {
       });
     }, 100);
 
+    // Mock generation after 2 seconds
     setTimeout(() => {
       clearInterval(progressInterval);
       setProgress(100);
 
-      const mockNotes = `# ${
-        style === "academic"
-          ? "Academic Summary"
-          : style === "casual"
-          ? "Casual Notes"
-          : style === "bullet-points"
-          ? "Key Points"
-          : style === "revision-notes"
-          ? "Revision Notes"
-          : "Summary"
-      }
+      // Generate mock notes based on selected options
+      const mockNotes = `# ${style === "academic" ? "Academic Summary" : style === "casual" ? "Casual Notes" : style === "bullet-points" ? "Key Points" : style === "revision-notes" ? "Revision Notes" : "Summary"}
 
 ## Overview
-${
-  summaryDepth === "brief"
-    ? "Brief overview of the main concepts discussed in the video."
-    : "In-depth analysis covering all major points and supporting details from the video content."
-}
+${summaryDepth === "brief" ? "Brief overview of the main concepts discussed in the video." : "In-depth analysis covering all major points and supporting details from the video content."}
 
 ${
   style === "bullet-points"
@@ -85,12 +81,12 @@ ${
 • Supporting evidence #4
 • Conclusion point #5`
     : style === "paragraph"
-    ? `This video covers several important concepts that are essential for understanding the topic. The presenter begins by introducing the foundational principles, then moves on to discuss more advanced applications. Throughout the presentation, various examples are provided to illustrate the key points. The content is structured in a logical progression that builds upon previously established concepts.
+      ? `This video covers several important concepts that are essential for understanding the topic. The presenter begins by introducing the foundational principles, then moves on to discuss more advanced applications. Throughout the presentation, various examples are provided to illustrate the key points. The content is structured in a logical progression that builds upon previously established concepts.
 
 The middle section focuses on practical applications and real-world scenarios where these concepts become particularly relevant. Several case studies are examined in detail, providing concrete examples of how the theory translates into practice. This section is particularly valuable for viewers looking to apply the knowledge in their own work or studies.
 
 The conclusion ties together all the main themes and provides actionable next steps for continued learning. The presenter also addresses common misconceptions and provides clarification on frequently confused aspects of the topic.`
-    : `## Key Concepts
+      : `## Key Concepts
 - Primary concept: Core idea discussed throughout the video
 - Supporting theory: Background information and context
 - Practical applications: Real-world use cases and examples
@@ -129,7 +125,9 @@ ${
   };
 
   const downloadNotes = () => {
-    const blob = new Blob([generatedNotes], { type: "text/plain" });
+    const blob = new Blob([generatedNotes], {
+      type: "text/plain",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -140,34 +138,40 @@ ${
 
   return (
     <div className="min-h-screen bg-background relative">
+      {/* Logo and Brand - Top Left */}
       <div className="absolute top-6 left-6 z-50 flex items-center">
-        <Image
-          src="/scrybe-logo.png"
+        <img
+          src={scrybeLogoUrl}
           alt="Scrybe Logo"
-          width={56}
-          height={56}
+          className="w- h-14 md:w-18 md:h-18 lg:w-22 lg:h-22"
         />
         <h2 className="ml-1 text-xl md:text-2xl lg:text-3xl font-bold text-white tracking-tight">
           SCRYBE
         </h2>
       </div>
 
+      {/* Hero Section with Viewport Glow */}
       <div className="viewport-glow flex flex-col items-center justify-center px-8 relative z-10">
         <div className="text-center max-w-7xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white mb-12 leading-tight">
             from videos to notes in seconds
           </h1>
 
+          {/* Mode Toggle */}
           <div className="flex justify-center gap-2 mb-6">
             <Button
-              variant={inputMode === "youtube" ? "default" : "outline"}
+              variant={
+                inputMode === "youtube" ? "default" : "outline"
+              }
               onClick={() => setInputMode("youtube")}
               className="rounded-lg text-lg px-8 py-4"
             >
               YouTube
             </Button>
             <Button
-              variant={inputMode === "upload" ? "default" : "outline"}
+              variant={
+                inputMode === "upload" ? "default" : "outline"
+              }
               onClick={() => setInputMode("upload")}
               className="rounded-lg text-lg px-8 py-4"
             >
@@ -175,23 +179,29 @@ ${
             </Button>
           </div>
 
+          {/* Conditional Subtext */}
           <p className="text-gray-400 text-sm md:text-base font-medium tracking-wide uppercase">
-            {inputMode === "upload"
+            {inputMode === "upload" 
               ? "Transcribe and summarise a video through file upload"
-              : "Transcribe and summarise a video by pasting a youtube link"}
+              : "Transcribe and summarise a video by pasting a youtube link"
+            }
           </p>
         </div>
       </div>
 
+      {/* Content Section */}
       <div className="relative z-20 bg-background">
         <div className="max-w-4xl mx-auto space-y-8 px-8 py-8">
+          {/* Input Section */}
           <div className="p-8 bg-background border border-white/10 rounded-lg">
             {inputMode === "youtube" ? (
               <div className="glow-input">
                 <Input
                   placeholder="https://www.youtube.com/watch?v=..."
                   value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
+                  onChange={(e) =>
+                    setYoutubeUrl(e.target.value)
+                  }
                   className="w-full text-center py-6 text-lg border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
                 />
               </div>
@@ -209,22 +219,33 @@ ${
                     Upload or drag a file here
                   </p>
                   <p className="text-sm text-gray-500">
-                    Supports .mp4 .mov .webm .mp3 .wav (≤ 20 min)
+                    Supports .mp4 .mov .webm .mp3 .wav (≤ 20
+                    min)
                   </p>
                 </div>
               </div>
             )}
           </div>
 
+          {/* Options Section */}
           <div className="glow-card p-6">
-            <h3 className="text-lg font-semibold mb-6 text-white">Options</h3>
+            <h3 className="text-lg font-semibold mb-6 text-white">
+              Options
+            </h3>
 
             <div className="space-y-6">
+              {/* Summary Depth */}
               <div>
-                <label className="block mb-3 text-white">Summary depth</label>
+                <label className="block mb-3 text-white">
+                  Summary depth
+                </label>
                 <div className="flex gap-2">
                   <Button
-                    variant={summaryDepth === "brief" ? "default" : "outline"}
+                    variant={
+                      summaryDepth === "brief"
+                        ? "default"
+                        : "outline"
+                    }
                     onClick={() => setSummaryDepth("brief")}
                     className="rounded-lg"
                   >
@@ -232,7 +253,9 @@ ${
                   </Button>
                   <Button
                     variant={
-                      summaryDepth === "in-depth" ? "default" : "outline"
+                      summaryDepth === "in-depth"
+                        ? "default"
+                        : "outline"
                     }
                     onClick={() => setSummaryDepth("in-depth")}
                     className="rounded-lg"
@@ -242,20 +265,29 @@ ${
                 </div>
               </div>
 
+              {/* Style */}
               <div>
-                <label className="block mb-3 text-white">Style</label>
+                <label className="block mb-3 text-white">
+                  Style
+                </label>
                 <div className="flex gap-2 flex-wrap">
                   {[
                     { value: "academic", label: "Academic" },
                     { value: "casual", label: "Casual" },
-                    { value: "bullet-points", label: "Bullet Points" },
-                    { value: "revision-notes", label: "Revision Notes" },
+                    {
+                      value: "bullet-points",
+                      label: "Bullet Points",
+                    },
+                    {
+                      value: "revision-notes",
+                      label: "Revision Notes",
+                    },
                     { value: "paragraph", label: "Paragraph" },
                   ].map(({ value, label }) => (
                     <Button
                       key={value}
                       variant={
-                        style === (value as Style) ? "default" : "outline"
+                        style === value ? "default" : "outline"
                       }
                       onClick={() => setStyle(value as Style)}
                       className="rounded-lg"
@@ -266,11 +298,14 @@ ${
                 </div>
               </div>
 
+              {/* Include Timestamps */}
               <div className="flex items-center space-x-2">
                 <Checkbox
                   id="timestamps"
                   checked={includeTimestamps}
-                  onCheckedChange={(checked) => setIncludeTimestamps(checked)}
+                  onCheckedChange={(checked) =>
+                    setIncludeTimestamps(checked as boolean)
+                  }
                 />
                 <label
                   htmlFor="timestamps"
@@ -282,10 +317,13 @@ ${
             </div>
           </div>
 
+          {/* Loading Progress */}
           {isLoading && (
             <div className="space-y-4">
               <div className="text-center">
-                <p className="text-white text-lg">Generating your notes...</p>
+                <p className="text-white text-lg">
+                  Generating your notes...
+                </p>
               </div>
               <div className="rainbow-progress h-3">
                 <div
@@ -296,12 +334,14 @@ ${
             </div>
           )}
 
+          {/* Summarize Button */}
           <div className="flex justify-center">
             <Button
               className="px-8 py-3 rounded-lg"
               onClick={handleSummarize}
               disabled={
-                isLoading || (inputMode === "youtube" && !youtubeUrl.trim())
+                isLoading ||
+                (inputMode === "youtube" && !youtubeUrl.trim())
               }
             >
               <Play className="w-4 h-4 mr-2" />
@@ -309,6 +349,7 @@ ${
             </Button>
           </div>
 
+          {/* Generated Notes Section - Only show when notes are available */}
           {showNotes && (
             <div className="glow-card-intense p-6">
               <div className="flex justify-between items-center mb-4">
@@ -326,8 +367,10 @@ ${
 
               <Textarea
                 value={generatedNotes}
-                onChange={(e) => setGeneratedNotes(e.target.value)}
-                className="min-h-[300px] font-mono text-sm resize-none"
+                onChange={(e) =>
+                  setGeneratedNotes(e.target.value)
+                }
+                className="min-h-[300px] font-mono text-sm resize-none bg-input-background text-white placeholder-gray-400"
                 placeholder="Your generated notes will appear here..."
               />
             </div>
