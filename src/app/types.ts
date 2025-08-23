@@ -1,10 +1,3 @@
-// Shared application types for Scrybe
-// Keep this file as the single source of truth for UI and API contracts
-
-export type InputMode = "youtube" | "upload";
-
-export type SummaryDepth = "brief" | "in_depth";
-
 export type SummaryStyle =
   | "academic"
   | "casual"
@@ -21,3 +14,7 @@ export interface SummaryOptions {
 export interface NotesEditorProps {
   initialValue?: string;
 }
+
+export type InputMode = "youtube" | "upload";
+export type SummaryDepth = "brief" | "in-depth";
+export type Style = "academic" | "casual" | "bullet" | "revision" | "paragraph";

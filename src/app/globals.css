@@ -290,26 +290,24 @@
 
   /* Viewport horizon glow effect */
   .viewport-glow {
-    position: relative;
+    position: relative; /* relative to the parent element */
     min-height: 100vh;
   }
 
   .viewport-glow::after {
     content: "";
     position: absolute;
-    bottom: -150px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 200%;
-    height: 400px;
+    bottom: -20%;
+    width: 150%;
+    height: 100%;
     background: radial-gradient(
-      ellipse 180% 100% at center 80%,
+      ellipse 200% 100% at center 80%,
       rgba(6, 255, 165, 0.2) 0%,
-      rgba(0, 212, 255, 0.18) 20%,
-      rgba(139, 92, 246, 0.15) 40%,
-      rgba(255, 0, 110, 0.12) 60%,
-      rgba(139, 92, 246, 0.08) 80%,
-      transparent 100%
+      rgba(0, 212, 255, 0.18) 5%,
+      rgba(139, 92, 246, 0.15) 20%,
+      rgba(183, 0, 255, 0.12) 29%,
+      rgba(139, 92, 246, 0.08) 35%,
+      transparent 40%
     );
     pointer-events: none;
     z-index: 0;

@@ -7,15 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Play } from "lucide-react";
-
-type InputMode = "youtube" | "upload";
-type SummaryDepth = "brief" | "in-depth";
-type Style =
-  | "academic"
-  | "casual"
-  | "bullet-points"
-  | "revision-notes"
-  | "paragraph";
+import { InputMode, SummaryDepth, Style } from "./types";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("youtube");
@@ -63,9 +55,9 @@ export default function Home() {
           ? "Academic Summary"
           : style === "casual"
           ? "Casual Notes"
-          : style === "bullet-points"
+          : style === "bullet"
           ? "Key Points"
-          : style === "revision-notes"
+          : style === "revision"
           ? "Revision Notes"
           : "Summary"
       }
@@ -76,9 +68,8 @@ ${
     ? "Brief overview of the main concepts discussed in the video."
     : "In-depth analysis covering all major points and supporting details from the video content."
 }
-
 ${
-  style === "bullet-points"
+  style === "bullet"
     ? `• Main concept #1
 • Key insight #2  
 • Important detail #3
