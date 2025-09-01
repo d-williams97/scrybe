@@ -304,13 +304,14 @@
       ellipse 200% 100% at center 80%,
       rgba(6, 255, 165, 0.2) 0%,
       rgba(0, 212, 255, 0.18) 5%,
-      rgba(139, 92, 246, 0.15) 20%,
-      rgba(183, 0, 255, 0.12) 29%,
+      rgba(139, 92, 246, 0.15) 25%,
+      rgba(137, 0, 192, 0.12) 30%,
       rgba(139, 92, 246, 0.08) 35%,
       transparent 40%
     );
     pointer-events: none;
     z-index: 0;
+    opacity: 0.8;
   }
 
   @keyframes rainbow-glow {

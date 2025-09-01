@@ -36,87 +36,56 @@ export default function Home() {
     setProgress(0);
     setShowNotes(false);
 
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 5;
+    try {
+      const res = await fetch("/api/process/youtube", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: youtubeUrl.trim(),
+          options: {
+            depth: summaryDepth,
+            style,
+            includeTimestamps,
+          },
+        }),
       });
-    }, 100);
+      if (!res.ok) throw new Error("Failed to start job");
+      const { jobId } = (await res.json()) as { jobId: string };
 
-    setTimeout(() => {
-      clearInterval(progressInterval);
-      setProgress(100);
+      // Poll job status to drive progress bar
+      const poll = async () => {
+        const r = await fetch(`/api/jobs/${jobId}`);
+        const data = await r.json();
+        if (data.error) throw new Error(data.error);
+        setProgress(data.progress ?? 0);
 
-      const mockNotes = `# ${
-        style === "academic"
-          ? "Academic Summary"
-          : style === "casual"
-          ? "Casual Notes"
-          : style === "bullet"
-          ? "Key Points"
-          : style === "revision"
-          ? "Revision Notes"
-          : "Summary"
-      }
-
-## Overview
-${
-  summaryDepth === "brief"
-    ? "Brief overview of the main concepts discussed in the video."
-    : "In-depth analysis covering all major points and supporting details from the video content."
-}
-${
-  style === "bullet"
-    ? `• Main concept #1
-• Key insight #2  
-• Important detail #3
-• Supporting evidence #4
-• Conclusion point #5`
-    : style === "paragraph"
-    ? `This video covers several important concepts that are essential for understanding the topic. The presenter begins by introducing the foundational principles, then moves on to discuss more advanced applications. Throughout the presentation, various examples are provided to illustrate the key points. The content is structured in a logical progression that builds upon previously established concepts.
-
-The middle section focuses on practical applications and real-world scenarios where these concepts become particularly relevant. Several case studies are examined in detail, providing concrete examples of how the theory translates into practice. This section is particularly valuable for viewers looking to apply the knowledge in their own work or studies.
-
-The conclusion ties together all the main themes and provides actionable next steps for continued learning. The presenter also addresses common misconceptions and provides clarification on frequently confused aspects of the topic.`
-    : `## Key Concepts
-- Primary concept: Core idea discussed throughout the video
-- Supporting theory: Background information and context
-- Practical applications: Real-world use cases and examples
-
-## Main Points
-1. Introduction to the topic and its importance
-2. Detailed explanation of fundamental principles  
-3. Examples and case studies demonstrating application
-4. Common challenges and how to overcome them
-5. Best practices and recommendations
-
-## Conclusion
-Summary of key takeaways and next steps for implementation.`
-}
-
-${
-  includeTimestamps
-    ? `
-
-## Timestamps
-[00:30] Introduction and overview
-[02:15] Main concept explanation
-[05:45] Practical examples
-[08:20] Advanced applications
-[11:10] Common challenges
-[13:45] Best practices
-[16:20] Q&A and conclusion`
-    : ""
-}`;
-
-      setGeneratedNotes(mockNotes);
-      setShowNotes(true);
+        if (data.status === "ready") {
+          const transcript = data.result?.transcript ?? "";
+          const summary = data.result?.summary ?? "";
+          const content = `# Generated Summary\n\n${summary}\n\n## Transcript\n${transcript}`;
+          setGeneratedNotes(content);
+          setShowNotes(true);
+          setIsLoading(false);
+          setProgress(100);
+          return;
+        }
+        if (data.status === "error") {
+          setGeneratedNotes(`Error: ${data.result?.error ?? "unknown"}`);
+          setShowNotes(true);
+          setIsLoading(false);
+          setProgress(100);
+          return;
+        }
+        // keep polling
+        setTimeout(poll, 600);
+      };
+      poll();
+    } catch {
       setIsLoading(false);
       setProgress(0);
-    }, 2000);
+      setGeneratedNotes(`Error starting job.`);
+      setShowNotes(true);
+    }
   };
 
   const downloadNotes = () => {
@@ -131,14 +100,14 @@ ${
 
   return (
     <div className="min-h-screen bg-background relative">
-      <div className="absolute top-6 left-6 z-50 flex items-center">
+      <div className="absolute z-50 flex items-center">
         <Image
           src="/scrybe-logo.png"
           alt="Scrybe Logo"
-          width={56}
-          height={56}
+          width={120}
+          height={120}
         />
-        <h2 className="ml-1 text-xl md:text-2xl lg:text-3xl font-bold text-white tracking-tight">
+        <h2 className="ml-1 text-xl md:text-2xl lg:text-3xl font-bold text-white tracking-tight relative right-8">
           SCRYBE
         </h2>
       </div>
