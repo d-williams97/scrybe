@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Play } from "lucide-react";
 import { InputMode, SummaryDepth, Style } from "./types";
+import { error } from "console";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("youtube");
@@ -32,12 +33,14 @@ export default function Home() {
   const handleSummarize = async () => {
     if (inputMode === "youtube" && !youtubeUrl.trim()) return;
 
+    console.log("youtubeUrl", youtubeUrl);
+
     setIsLoading(true);
     setProgress(0);
     setShowNotes(false);
 
     try {
-      const res = await fetch("/api/process/youtube", {
+      const res = await fetch("/api/youtubeSummary", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -49,13 +52,22 @@ export default function Home() {
           },
         }),
       });
-      if (!res.ok) throw new Error("Failed to start job");
+      if (!res.ok) {
+        setIsLoading(false);
+        setProgress(0);
+        setShowNotes(false);
+        console.log("summarise failed");
+        throw new Error("Failed to start job");
+      }
+
       const { jobId } = (await res.json()) as { jobId: string };
 
       // Poll job status to drive progress bar
       const poll = async () => {
-        const r = await fetch(`/api/jobs/${jobId}`);
-        const data = await r.json();
+        // create job status end point and use job id to check status in the end point
+        const res = await fetch(`/api/jobs?jobId=${jobId}`);
+        const data = await res.json();
+        console.log("data", data);
         if (data.error) throw new Error(data.error);
         setProgress(data.progress ?? 0);
 
@@ -81,6 +93,7 @@ export default function Home() {
       };
       poll();
     } catch {
+      console.log("job failed");
       setIsLoading(false);
       setProgress(0);
       setGeneratedNotes(`Error starting job.`);

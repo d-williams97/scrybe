@@ -9,37 +9,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "OPENAI_API_KEY_PLACEHOLDER",
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = (await req.json()) as CreateYoutubeJobRequest;
-    if (!body?.url) {
-      return NextResponse.json({ error: "Missing url" }, { status: 422 });
-    }
-
-    const isValid = ytdl.validateURL(body.url);
-    if (!isValid) {
-      return NextResponse.json(
-        { error: "Invalid YouTube URL" },
-        { status: 400 }
-      );
-    }
-
-    const job = jobManager.create();
-
-    // Kick off async processing without blocking the response
-    void processYoutube(job.id, body.url, body.options).catch((err) => {
-      console.error(err);
-      jobManager.fail(job.id, "Processing failed");
-    });
-
-    return NextResponse.json({ jobId: job.id });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
-  }
-}
-
 async function processYoutube(jobId: string, url: string, options: any) {
+  console.log("jobId", jobId);
+  console.log("url", url);
+  console.log("options", options);
   // 1) Download audio-only stream
   jobManager.update(jobId, { status: "downloading", progress: 10 });
   const stream = ytdl(url, { quality: "highestaudio", filter: "audioonly" });
@@ -69,4 +42,35 @@ async function processYoutube(jobId: string, url: string, options: any) {
     transcript: mockTranscript,
     summary: mockSummary,
   });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as CreateYoutubeJobRequest;
+    if (!body?.url) {
+      return NextResponse.json({ error: "Missing url" }, { status: 422 });
+    }
+
+    const isValid = ytdl.validateURL(body.url);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: "Invalid YouTube URL" },
+        { status: 400 }
+      );
+    }
+
+    const job = jobManager.create();
+    console.log("jobbbbb", job);
+
+    // Kick off async processing without blocking the response
+    void processYoutube(job.id, body.url, body.options).catch((err) => {
+      console.error(err);
+      jobManager.fail(job.id, "Processing failed");
+    });
+
+    return NextResponse.json({ jobId: job.id });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
+  }
 }

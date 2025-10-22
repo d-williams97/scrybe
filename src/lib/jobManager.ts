@@ -35,6 +35,8 @@ class InMemoryJobManager {
   }
 
   get(id: string) {
+    console.log("fetching id", id);
+    console.log("jobs", this.jobs);
     return this.jobs.get(id);
   }
 }
