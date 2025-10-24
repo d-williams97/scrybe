@@ -60,38 +60,38 @@ export default function Home() {
         throw new Error("Failed to start job");
       }
 
-      const { jobId } = (await res.json()) as { jobId: string };
+      // const { jobId } = (await res.json()) as { jobId: string };
 
-      // Poll job status to drive progress bar
-      const poll = async () => {
-        // create job status end point and use job id to check status in the end point
-        const res = await fetch(`/api/jobs?jobId=${jobId}`);
-        const data = await res.json();
-        console.log("data", data);
-        if (data.error) throw new Error(data.error);
-        setProgress(data.progress ?? 0);
+      // // Poll job status to drive progress bar
+      // const poll = async () => {
+      //   // create job status end point and use job id to check status in the end point
+      //   const res = await fetch(`/api/jobs?jobId=${jobId}`);
+      //   const data = await res.json();
+      //   console.log("data", data);
+      //   if (data.error) throw new Error(data.error);
+      //   setProgress(data.progress ?? 0);
 
-        if (data.status === "ready") {
-          const transcript = data.result?.transcript ?? "";
-          const summary = data.result?.summary ?? "";
-          const content = `# Generated Summary\n\n${summary}\n\n## Transcript\n${transcript}`;
-          setGeneratedNotes(content);
-          setShowNotes(true);
-          setIsLoading(false);
-          setProgress(100);
-          return;
-        }
-        if (data.status === "error") {
-          setGeneratedNotes(`Error: ${data.result?.error ?? "unknown"}`);
-          setShowNotes(true);
-          setIsLoading(false);
-          setProgress(100);
-          return;
-        }
-        // keep polling
-        setTimeout(poll, 600);
-      };
-      poll();
+      //   if (data.status === "ready") {
+      //     const transcript = data.result?.transcript ?? "";
+      //     const summary = data.result?.summary ?? "";
+      //     const content = `# Generated Summary\n\n${summary}\n\n## Transcript\n${transcript}`;
+      //     setGeneratedNotes(content);
+      //     setShowNotes(true);
+      //     setIsLoading(false);
+      //     setProgress(100);
+      //     return;
+      //   }
+      //   if (data.status === "error") {
+      //     setGeneratedNotes(`Error: ${data.result?.error ?? "unknown"}`);
+      //     setShowNotes(true);
+      //     setIsLoading(false);
+      //     setProgress(100);
+      //     return;
+      //   }
+      //   // keep polling
+      //   setTimeout(poll, 600);
+      // };
+      // poll();
     } catch {
       console.log("job failed");
       setIsLoading(false);

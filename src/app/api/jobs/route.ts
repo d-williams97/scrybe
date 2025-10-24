@@ -6,19 +6,19 @@ export async function GET(req: NextRequest) {
   const jobId = searchParams.get("jobId");
   if (!jobId)
     return NextResponse.json(
-      { message: "No job id passed to end point" },
-      { status: 500 }
+      { error: "Bad request: No job id passed to end point" },
+      { status: 400 }
     );
   try {
+    console.log("jobs liost", jobManager.jobs);
     const jobStatus = jobManager.get(jobId);
-    console.log("jobStatus", jobStatus);
     if (!jobStatus) console.log("no status");
 
     return NextResponse.json(jobStatus);
   } catch (error) {
     console.error("error", error);
     return NextResponse.json(
-      { message: "unexpected error", error: error },
+      { error: "Internal server error: " + error },
       { status: 500 }
     );
   }

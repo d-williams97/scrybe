@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import type { Job, JobResult, JobStatus } from "@/app/types";
 
 class InMemoryJobManager {
-  private jobs = new Map<string, Job>();
+  jobs = new Map<string, Job>();
 
   create(): Job {
     const id = nanoid();
