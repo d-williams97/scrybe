@@ -6,9 +6,7 @@ import ytdl from "ytdl-core";
 import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 
-// Fetch transcript using default settings
-
-// export const runtime = "nodejs"; // It forces this route to run on the Node.js runtime,
+export const runtime = "nodejs"; // It forces this route to run on the Node.js runtime,
 // Placeholder API key usage
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "OPENAI_API_KEY_PLACEHOLDER",
@@ -49,6 +47,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // get meta data of video if video is too long need to reject and send back an error
+    const videoInfo = await ytdl.getBasicInfo(ytURL);
+    const videDetails = videoInfo.videoDetails;
+
+    console.log("videoDetails", videDetails);
+
     const transcriptRes = await fetchTranscript(ytURL);
     if (!Array.isArray(transcriptRes) || transcriptRes.length === 0)
       return NextResponse.json(
@@ -56,6 +61,7 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       ); // resource not found
 
+    // console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
     const deepDecode = (s: string) => {
       let prev = s ?? "";
@@ -71,11 +77,31 @@ export async function POST(req: NextRequest) {
       deepDecode(segment.text)
     );
 
-    const fullText = decodedTranscript
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join(" ");
-    console.log("fullText", fullText);
+    const fullText = decodedTranscript.map((s) => s.trim()).filter(Boolean);
+
+    console.log("full text", fullText);
+    const characterLimit = 3800;
+
+    // loop over the full text
+    let counter = 0;
+    let singleChunk: string[] = [];
+    const transcriptChunks = [];
+    for (let i = 0; i < fullText.length; i++) {
+      // create new chunk(array of text)
+      if (counter >= characterLimit) {
+        transcriptChunks.push(singleChunk);
+        singleChunk = [];
+        counter = 0;
+      }
+      singleChunk.push(fullText[i]);
+      counter += fullText[i].length;
+    }
+
+    console.log("transcript chunks", transcriptChunks.length);
+
+    throw new Error("test");
+
+    // create the prompt for each chunk by appending the other inputs from the ladning page form
 
     return NextResponse.json({ jobId: job.id }, { status: 201 });
   } catch (e) {
