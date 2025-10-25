@@ -6,39 +6,22 @@ import ytdl from "ytdl-core";
 import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 
-export const runtime = "nodejs"; // It forces this route to run on the Node.js runtime,
-// Placeholder API key usage
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "OPENAI_API_KEY_PLACEHOLDER",
-});
-
-//   // 3) Summarize using OpenAI
-//   jobManager.update(jobId, { status: "summarizing", progress: 70 });
-//   await new Promise((r) => setTimeout(r, 800));
-//   // call open ai to summarising the transcript with options
-//   //   const summary = await openai.chat.completions.create({
-//   //     model: "gpt-4o-mini",
-//   //     messages: [{ role: "user", content: `Summarise the following transcript: ${mockTranscript} with the following options: ${options}` }],
-//   //   });
-//   const mockSummary = `Summary (${options?.depth ?? "brief"}, ${
-//     options?.style ?? "academic"
-//   })`;
-
-//   // 4) Finish
-//   jobManager.succeed(jobId, {
-//     transcript: mockTranscript,
-//     summary: mockSummary,
-//   });
-// }
+export const runtime = "nodejs";
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as CreateYoutubeJobRequest;
+    const depth = body.depth;
+    console.log("depth", depth);
+    const style = body.style;
+    console.log("style", style);
+    const includeTimestamps = body.includeTimestamps;
+    console.log("includeTimestamps", includeTimestamps);
+    const ytURL = body.url;
 
-    if (!body?.url) {
+    if (!ytURL) {
       return NextResponse.json({ error: "Missing url" }, { status: 422 }); // unprocessable content
     }
 
-    const ytURL = body.url;
     const isValid = ytdl.validateURL(ytURL);
     if (!isValid) {
       console.log("not valid");
@@ -51,7 +34,6 @@ export async function POST(req: NextRequest) {
     // get meta data of video if video is too long need to reject and send back an error
     const videoInfo = await ytdl.getBasicInfo(ytURL);
     const videDetails = videoInfo.videoDetails;
-
     console.log("videoDetails", videDetails);
 
     const transcriptRes = await fetchTranscript(ytURL);
@@ -86,24 +68,32 @@ export async function POST(req: NextRequest) {
     let counter = 0;
     let singleChunk: string[] = [];
     const transcriptChunks = [];
-    for (let i = 0; i < fullText.length; i++) {
+    fullText.forEach((text: string) => {
       // create new chunk(array of text)
       if (counter >= characterLimit) {
         transcriptChunks.push(singleChunk);
         singleChunk = [];
         counter = 0;
       }
-      singleChunk.push(fullText[i]);
-      counter += fullText[i].length;
-    }
-
+      singleChunk.push(text);
+      counter += text.length;
+    });
     console.log("transcript chunks", transcriptChunks.length);
 
-    throw new Error("test");
+    // Create the prompt for OpenAI API
+    console.log("process.env.OPENAI_API_KEY", process.env.OPENAI_API_KEY);
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
 
-    // create the prompt for each chunk by appending the other inputs from the ladning page form
+    const response = await client.responses.create({
+      model: "gpt-5-nano",
+      input: "Write a one-sentence bedtime story about a unicorn.",
+    });
 
-    return NextResponse.json({ jobId: job.id }, { status: 201 });
+    console.log("response", response);
+
+    return NextResponse.json({ summary: "this is a summary" }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

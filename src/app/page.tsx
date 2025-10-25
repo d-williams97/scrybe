@@ -45,11 +45,9 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: youtubeUrl.trim(),
-          options: {
-            depth: summaryDepth,
-            style,
-            includeTimestamps,
-          },
+          depth: summaryDepth,
+          style,
+          includeTimestamps,
         }),
       });
       if (!res.ok) {
