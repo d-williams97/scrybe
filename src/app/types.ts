@@ -7,7 +7,12 @@ export type SummaryStyle =
 
 export type InputMode = "youtube" | "upload";
 export type SummaryDepth = "brief" | "in-depth";
-export type Style = "academic" | "casual" | "bullet" | "revision" | "paragraph";
+export type Style =
+  | "academic"
+  | "casual"
+  | "bullet-points"
+  | "revision-notes"
+  | "paragraph";
 
 export interface NotesEditorProps {
   initialValue?: string;
