@@ -46,7 +46,7 @@ export default function Home() {
         body: JSON.stringify({
           url: youtubeUrl.trim(),
           depth: summaryDepth,
-          style,
+          style: style,
           includeTimestamps,
         }),
       });

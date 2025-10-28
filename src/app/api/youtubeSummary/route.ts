@@ -12,81 +12,58 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as CreateYoutubeJobRequest;
   const depth = body.depth;
   console.log("depth", depth);
-  const style = body.style;
+  const style = body.style as Style;
   console.log("style", style);
   const includeTimestamps = body.includeTimestamps;
   console.log("includeTimestamps", includeTimestamps);
   const ytURL = body.url;
 
-  function buildSummaryPrompt(opts: {
-    chunkText: string;
-    depth: SummaryDepth;
-    style: Style;
-    includeTimestamps: boolean;
-    videoTitle?: string;
-    chunkIndex?: number;
-    totalChunks?: number;
-  }) {
-    const {
-      chunkText,
-      depth,
-      style,
-      includeTimestamps,
-      videoTitle,
-      chunkIndex,
-      totalChunks,
-    } = opts;
-
-    const depthTargets: Record<SummaryDepth, string> = {
-      brief: "120–180 words",
-      "in-depth": "250–350 words",
-    };
-
-    const styleDirectives: Record<Style, string> = {
-      academic:
-        "- Tone: clear, neutral, third-person.\n- Use short headings and concise sentences.\n- No emojis or slang.",
-      casual:
-        "- Tone: friendly, conversational, second-person.\n- Short sentences, no jargon.\n- No emojis.",
-      "bullet-points":
-        "- Output ONLY bullets (no intro/outro).\n- 6–10 bullets.\n- Each bullet max 2 lines.",
-      "revision-notes":
-        "- Use headings and bullets like exam notes.\n- Define key terms briefly.\n- End with 3 quick Q→A flashcards.",
-      paragraph: "- Output 1–3 tight paragraphs.\n- No lists.\n- Avoid filler.",
-    };
-
-    const tsInstruction = includeTimestamps
-      ? "- If [mm:ss] markers appear in text, keep them in parentheses next to the points they support. Do NOT invent timestamps."
-      : "- Ignore timestamps; do not add any.";
-
-    const chunkContext =
-      chunkIndex && totalChunks
-        ? `This is part ${chunkIndex} of ${totalChunks}. Do not refer to 'this chunk' or other parts; write a self-contained summary.`
-        : "Write a self-contained summary.";
-
+  function buildChunkExtractionPrompt(
+    chunkText: string,
+    includeTimestamps: boolean
+  ) {
     return `
-  You are an expert note-taker summarising a YouTube transcript for a general UK audience. Use British English. Base everything ONLY on the provided text. Do NOT invent facts.
-  
-  ${chunkContext}
-  
-  - Target length: ${depthTargets[depth]}.
-  - Style: ${style}.
-  ${styleDirectives[style]}
-  ${tsInstruction}
-  
-  If the text ends mid-thought, summarise what is present without guessing missing content.
-  
-  Output requirements:
-  - No preamble or meta-commentary.
-  - No references to 'transcript', 'chunk', or 'video'.
-  - Use clear formatting according to the chosen style.
-  
-  Context (optional): ${videoTitle ?? "Untitled"}
-  
-  Transcript text begins:
+  Extract a summary of the transcript text. 
+  - British English. Text and sub headings only.
+  - Output notes only, no prose or other text.
+  - Each sub heading should have a summary of the points relevant to the sub heading. include key points and facts, no duplicates.
+  ${
+    includeTimestamps &&
+    `- Add timestamps to the end of each summarised point under each sub heading in the format [mm:ss]`
+  }
   """
   ${chunkText}
   """
-  Transcript text ends.
+  `.trim();
+  }
+
+  function buildFinalPrompt(
+    data: string,
+    depth: SummaryDepth,
+    style: Style,
+    includeTimestamps: boolean,
+    videoTitle?: string
+  ) {
+    const depthText = depth === "brief" ? "120–180 words" : "250–400 words";
+    return `
+  You are an expert note taker. Create a final summary from the below notes extracted from the transcript of a Youtube video titled "${videoTitle}". 
+  
+  - Use British English. 
+  - No invented facts.
+  - Ignore any notes that do not relevant to the overarching theme of the video i.e jokes, etc.
+  - Target length: ${depthText}.
+  - Style: ${style}.
+  - ${
+    includeTimestamps
+      ? "If a point maps to a provided [mm:ss], keep it in parentheses. Do NOT invent times."
+      : "Do not include timestamps."
+  }
+  - No meta text; output only the formatted summary.
+  
+  ${videoTitle && `Title: ${videoTitle}.`}
+  
+  Structured notes:
+  ${data}
   `.trim();
   }
 
@@ -107,7 +84,6 @@ export async function POST(req: NextRequest) {
     // get meta data of video if video is too long need to reject and send back an error
     const videoInfo = await ytdl.getBasicInfo(ytURL);
     const videDetails = videoInfo.videoDetails;
-    console.log("videoDetails", videDetails);
     const videoTitle = videDetails.title;
 
     const transcriptRes = await fetchTranscript(ytURL);
@@ -117,7 +93,6 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       ); // resource not found
 
-    // console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
     const deepDecode = (s: string) => {
       let prev = s ?? "";
@@ -136,7 +111,7 @@ export async function POST(req: NextRequest) {
     );
 
     const fullText = decodedTranscript.map((s) => s.trim()).filter(Boolean);
-    console.log("full text", fullText);
+    // console.log("full text", fullText);
     const characterLimit = 3800;
 
     // loop over the full text
@@ -154,31 +129,58 @@ export async function POST(req: NextRequest) {
       counter += text.length;
     });
 
-    // Create the prompt for OpenAI API
-    const wordLimitPerChunck = characterLimit / transcriptChunks.length;
-
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    console.log("transcriptChunks", transcriptChunks);
-    await Promise.all(
+    // create summary for each trasncript chunk
+    const summaryResponses = await Promise.all(
       transcriptChunks.map(async (chunk, index) => {
         console.log("chunk", chunk);
-        throw new Error("testing");
-        const prompt = "yes";
+        const prompt = buildChunkExtractionPrompt(
+          chunk.join(" "),
+          includeTimestamps
+        );
+        console.log("prompt", prompt);
+
         const response = await client.responses.create({
           model: "gpt-5-nano",
           input: prompt,
         });
         return response;
       })
-    ).then((values) => {
-      console.log("values", values);
-    });
-    // Add other inputs to my response prompt
+    );
 
-    // Then neeed to summarise the summaries
+    const summaryChunks = summaryResponses.map(
+      (response) => response.output_text
+    );
+    console.log("summaryChunks", summaryChunks);
+
+    const normalisedSummaryChunks = summaryChunks.map(
+      (chunk) =>
+        chunk
+          .replace(/[ \t]+/g, " ")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim() // remove excess white space by replacing any sequence of spaces or tabs with a single space and three or more consecutive newlines with just two newlines
+    );
+    console.log("normalisedSummaryChunks", normalisedSummaryChunks);
+    const joinedSummaryChunks = normalisedSummaryChunks.join("\n\n");
+
+    // build final prompt with all the summary chunks joined together
+    const finalPrompt = buildFinalPrompt(
+      joinedSummaryChunks,
+      depth,
+      style,
+      includeTimestamps,
+      videoTitle
+    );
+    console.log("finalPrompt", finalPrompt);
+    const finalPromptResponse = await client.responses.create({
+      model: "gpt-5-nano",
+      input: finalPrompt,
+    });
+    console.log("finalPromptResponse", finalPromptResponse);
+    throw new Error("testing");
 
     return NextResponse.json({ summary: "this is a summary" }, { status: 201 });
   } catch (e) {
