@@ -6,7 +6,24 @@ import ytdl from "ytdl-core";
 import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 import { SummaryDepth, Style } from "@/app/types";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 export const runtime = "nodejs";
+
+// 1. Load documents (PDFs, text, URLs, etc.)
+
+// 2. Split documents into chunks
+
+// 3. Embed the chunks using an embedding model
+
+// 4. Store embeddings in a vector database
+
+// 5. Create a retriever from that database
+
+// 6. Build a chain where:
+
+// 7. user query → retriever → LLM → final answer
+
+// (Optional) Add features like re-ranking, caching, tools, or agents
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as CreateYoutubeJobRequest;
@@ -93,6 +110,7 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       ); // resource not found
 
+    console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
     const deepDecode = (s: string) => {
       let prev = s ?? "";
@@ -105,13 +123,101 @@ export async function POST(req: NextRequest) {
       return prev;
     };
 
-    const decodedTranscript = transcriptRes.map((segment) =>
-      // if add timestamps is added append to the text at the end
-      deepDecode(segment.text)
-    );
+    // normalise the transcript
+    const decodedTranscript = transcriptRes.map((segment) => ({
+      text: deepDecode(segment.text),
+      offset: segment.offset,
+      duration: segment.duration,
+    }));
 
-    const fullText = decodedTranscript.map((s) => s.trim()).filter(Boolean);
-    // console.log("full text", fullText);
+    // create a full text transcript string
+    // const fullText = decodedTranscript
+    //   .map((s) => s.text.trim())
+    //   .filter(Boolean)
+    //   .join(" ");
+
+    // Build joined text and track character positions
+    const segmentRanges: Array<{
+      startChar: number;
+      endChar: number;
+      offset: number;
+      endTime: number;
+    }> = [];
+
+    let currentChar = 0;
+
+    const fullText = decodedTranscript
+      .map((segment) => {
+        const startChar = currentChar;
+        const endChar = currentChar + segment.text.length;
+
+        segmentRanges.push({
+          startChar,
+          endChar,
+          offset: segment.offset,
+          endTime: segment.offset + segment.duration,
+        });
+
+        currentChar = endChar + 1; // +1 for space between segments
+        return segment.text.trim();
+      })
+      .filter(Boolean)
+      .join(" ");
+
+    const splitter = new RecursiveCharacterTextSplitter({
+      chunkSize: 1000, // The maximum size of a chunk, where size is determined by the length_function
+      chunkOverlap: 120, // Target overlap between chunks. Overlapping chunks helps to mitigate loss of information when context is divided between chunks.
+      // length_function: "words", // The function to use to determine the length of a chunk.
+      // is_separator_regex: Whether the separator list (defaulting to ["\n\n", "\n", " ", ""]) should be interpreted as regex.
+    });
+
+    // creating langchain document objects
+    const chunks = await splitter.createDocuments([fullText]);
+    console.log("chunks", chunks);
+
+    // Add custom metadata and IDs to each chunk
+    const chunksWithMetadata = chunks.map((chunk, index) => {
+      // Find timestamp range for this chunk (using the mapping logic from earlier)
+
+      // find the start and end indexes of the chunk in the full text
+      const chunkStart = fullText.indexOf(chunk.pageContent);
+      const chunkEnd = chunkStart + chunk.pageContent.length;
+
+      // find the overlapping segments in the segment ranges
+      const overlappingSegments = segmentRanges.filter(
+        (range) => chunkStart < range.endChar && chunkEnd > range.startChar
+      );
+
+      console.log("overlappingSegments", overlappingSegments);
+
+      // find the minimum offset and maximum end time of the overlapping segments
+      const minOffset =
+        overlappingSegments.length > 0
+          ? Math.min(...overlappingSegments.map((s) => s.offset))
+          : 0;
+      const maxEndTime =
+        overlappingSegments.length > 0
+          ? Math.max(...overlappingSegments.map((s) => s.endTime))
+          : 0;
+
+      return {
+        ...chunk, // Keep original pageContent and metadata.loc
+        metadata: {
+          ...chunk.metadata, // Keep existing loc info
+          chunkIndex: index,
+          offset: minOffset,
+          duration: maxEndTime - minOffset,
+          videoId: videoInfo.videoDetails.videoId,
+          videoTitle: videoTitle,
+        },
+        id: `${videoInfo.videoDetails.videoId}-chunk-${index}`, // Add unique ID for Pinecone
+      };
+    });
+
+    console.log("chunksWithMetadata", chunksWithMetadata);
+
+    throw new Error("testing");
+
     const characterLimit = 3800;
 
     // loop over the full text

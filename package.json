@@ -9,12 +9,18 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@langchain/core": "^1.0.2",
+    "@langchain/openai": "^1.0.0",
+    "@langchain/pinecone": "^1.0.0",
+    "@langchain/textsplitters": "^1.0.0",
+    "@pinecone-database/pinecone": "^5.1.2",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "he": "^1.2.0",
     "html-entities-decoder": "^1.0.5",
+    "langchain": "^1.0.2",
     "lucide-react": "^0.536.0",
     "nanoid": "^5.1.5",
     "next": "15.4.5",
