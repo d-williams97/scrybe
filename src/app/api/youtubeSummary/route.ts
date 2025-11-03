@@ -7,6 +7,8 @@ import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 import { SummaryDepth, Style } from "@/app/types";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
+import { Pinecone } from "@pinecone-database/pinecone";
+import { OpenAIEmbeddings } from "@langchain/openai";
 export const runtime = "nodejs";
 
 // 1. Load documents (PDFs, text, URLs, etc.)
@@ -137,6 +139,7 @@ export async function POST(req: NextRequest) {
     //   .join(" ");
 
     // Build joined text and track character positions
+
     const segmentRanges: Array<{
       startChar: number;
       endChar: number;
@@ -173,8 +176,6 @@ export async function POST(req: NextRequest) {
 
     // creating langchain document objects
     const chunks = await splitter.createDocuments([fullText]);
-    console.log("chunks", chunks);
-
     // Add custom metadata and IDs to each chunk
     const chunksWithMetadata = chunks.map((chunk, index) => {
       // Find timestamp range for this chunk (using the mapping logic from earlier)
@@ -187,8 +188,6 @@ export async function POST(req: NextRequest) {
       const overlappingSegments = segmentRanges.filter(
         (range) => chunkStart < range.endChar && chunkEnd > range.startChar
       );
-
-      console.log("overlappingSegments", overlappingSegments);
 
       // find the minimum offset and maximum end time of the overlapping segments
       const minOffset =
@@ -213,8 +212,59 @@ export async function POST(req: NextRequest) {
         id: `${videoInfo.videoDetails.videoId}-chunk-${index}`, // Add unique ID for Pinecone
       };
     });
-
     console.log("chunksWithMetadata", chunksWithMetadata);
+
+    // embed the chunks with metadata
+
+    const pc = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY as string,
+    });
+
+    const index = pc.Index(process.env.PINECONE_INDEX_NAME as string);
+
+    // Initialize OpenAI embeddings model
+    const embeddings = new OpenAIEmbeddings({
+      modelName: "text-embedding-3-small",
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+
+    // Embed all chunks
+    const chunkTexts = chunksWithMetadata.map((chunk) => chunk.pageContent);
+    const chunkEmbeddings = await embeddings.embedDocuments(chunkTexts);
+    console.log("chunkEmbeddings", chunkEmbeddings);
+
+    // Prepare data for Pinecone upsert
+    const vectorsToUpsert = chunksWithMetadata.map((chunk, index) => ({
+      id: chunk.id,
+      values: chunkEmbeddings[index],
+      metadata: {
+        text: chunk.pageContent,
+        chunkIndex: chunk.metadata.chunkIndex,
+        offset: chunk.metadata.offset,
+        duration: chunk.metadata.duration,
+        videoId: chunk.metadata.videoId,
+        videoTitle: chunk.metadata.videoTitle,
+      },
+    }));
+
+    console.log("vectorsToUpsert", vectorsToUpsert);
+
+    // Upsert vectors into Pinecone with namespace per video
+    const namespace = `youtube-${videoInfo.videoDetails.videoId}`;
+    console.log(
+      `Upserting ${vectorsToUpsert.length} vectors into namespace: ${namespace}`
+    );
+
+    // Pinecone upsert can handle batches, but for large batches, chunk them
+    const batchSize = 100;
+    for (let i = 0; i < vectorsToUpsert.length; i += batchSize) {
+      const batch = vectorsToUpsert.slice(i, i + batchSize);
+      await index.namespace(namespace).upsert(batch);
+    }
+
+    console.log(
+      `Successfully stored ${vectorsToUpsert.length} chunks in Pinecone`
+    );
 
     throw new Error("testing");
 
