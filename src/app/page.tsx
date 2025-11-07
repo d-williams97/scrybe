@@ -58,6 +58,9 @@ export default function Home() {
         throw new Error("Failed to start job");
       }
 
+      const response = await res.json();
+      console.log("response", response.summary);
+
       // const { jobId } = (await res.json()) as { jobId: string };
 
       // // Poll job status to drive progress bar

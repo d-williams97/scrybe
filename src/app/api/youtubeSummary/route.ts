@@ -8,60 +8,23 @@ import { decode } from "he";
 import { SummaryDepth, Style } from "@/app/types";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Pinecone } from "@pinecone-database/pinecone";
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
+import { PineconeStore } from "@langchain/pinecone";
 export const runtime = "nodejs";
-
-// 1. Load documents (PDFs, text, URLs, etc.)
-
-// 2. Split documents into chunks
-
-// 3. Embed the chunks using an embedding model
-
-// 4. Store embeddings in a vector database
-
-// 5. Create a retriever from that database
-
-// 6. Build a chain where:
-
-// 7. user query → retriever → LLM → final answer
-
-// (Optional) Add features like re-ranking, caching, tools, or agents
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as CreateYoutubeJobRequest;
   const depth = body.depth;
-  console.log("depth", depth);
   const style = body.style as Style;
-  console.log("style", style);
   const includeTimestamps = body.includeTimestamps;
-  console.log("includeTimestamps", includeTimestamps);
   const ytURL = body.url;
 
-  function buildChunkExtractionPrompt(
-    chunkText: string,
-    includeTimestamps: boolean
-  ) {
-    return `
-  Extract a summary of the transcript text. 
-  - British English. Text and sub headings only.
-  - Output notes only, no prose or other text.
-  - Each sub heading should have a summary of the points relevant to the sub heading. include key points and facts, no duplicates.
-  ${
-    includeTimestamps &&
-    `- Add timestamps to the end of each summarised point under each sub heading in the format [mm:ss]`
-  }
-  """
-  ${chunkText}
-  """
-  `.trim();
-  }
-
-  function buildFinalPrompt(
-    data: string,
+  function buildSummaryPrompt(
+    text: string,
     depth: SummaryDepth,
     style: Style,
     includeTimestamps: boolean,
-    videoTitle?: string
+    videoTitle: string
   ) {
     const depthText = depth === "brief" ? "120–180 words" : "250–400 words";
     return `
@@ -82,7 +45,7 @@ export async function POST(req: NextRequest) {
   ${videoTitle && `Title: ${videoTitle}.`}
   
   Structured notes:
-  ${data}
+  ${text}
   `.trim();
   }
 
@@ -125,21 +88,14 @@ export async function POST(req: NextRequest) {
       return prev;
     };
 
-    // normalise the transcript
+    // Normalise the transcript
     const decodedTranscript = transcriptRes.map((segment) => ({
       text: deepDecode(segment.text),
       offset: segment.offset,
       duration: segment.duration,
     }));
 
-    // create a full text transcript string
-    // const fullText = decodedTranscript
-    //   .map((s) => s.text.trim())
-    //   .filter(Boolean)
-    //   .join(" ");
-
     // Build joined text and track character positions
-
     const segmentRanges: Array<{
       startChar: number;
       endChar: number;
@@ -223,14 +179,14 @@ export async function POST(req: NextRequest) {
     const index = pc.Index(process.env.PINECONE_INDEX_NAME as string);
 
     // Initialize OpenAI embeddings model
-    const embeddings = new OpenAIEmbeddings({
+    const embeddingsModel = new OpenAIEmbeddings({
       modelName: "text-embedding-3-small",
       openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
     // Embed all chunks
     const chunkTexts = chunksWithMetadata.map((chunk) => chunk.pageContent);
-    const chunkEmbeddings = await embeddings.embedDocuments(chunkTexts);
+    const chunkEmbeddings = await embeddingsModel.embedDocuments(chunkTexts);
     console.log("chunkEmbeddings", chunkEmbeddings);
 
     // Prepare data for Pinecone upsert
@@ -247,98 +203,98 @@ export async function POST(req: NextRequest) {
       },
     }));
 
-    console.log("vectorsToUpsert", vectorsToUpsert);
-
     // Upsert vectors into Pinecone with namespace per video
     const namespace = `youtube-${videoInfo.videoDetails.videoId}`;
-    console.log(
-      `Upserting ${vectorsToUpsert.length} vectors into namespace: ${namespace}`
-    );
 
     // Pinecone upsert can handle batches, but for large batches, chunk them
-    const batchSize = 100;
+    console.log("vectorsToUpsert length", vectorsToUpsert.length);
+    const batchSize = 100; // max batch size for Pinecone upsert is 1000 and must be < 2 mb
     for (let i = 0; i < vectorsToUpsert.length; i += batchSize) {
       const batch = vectorsToUpsert.slice(i, i + batchSize);
+      console.log("batch", batch);
       await index.namespace(namespace).upsert(batch);
     }
 
     console.log(
-      `Successfully stored ${vectorsToUpsert.length} chunks in Pinecone`
+      `Successfully stored ${vectorsToUpsert.length} chunks in Pinecone namespace ${namespace} for video ${videoInfo.videoDetails.videoId}`
     );
 
-    throw new Error("testing");
-
-    const characterLimit = 3800;
-
-    // loop over the full text
-    let counter = 0;
-    let singleChunk: string[] = [];
-    const transcriptChunks: string[][] = [];
-    fullText.forEach((text: string) => {
-      // create new chunk(array of text)
-      if (counter >= characterLimit) {
-        transcriptChunks.push(singleChunk);
-        singleChunk = [];
-        counter = 0;
-      }
-      singleChunk.push(text);
-      counter += text.length;
+    const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
+      pineconeIndex: index,
+      namespace: namespace, // namespace is used to isolate the data for a specific video. Could filter below if not using name spaces
     });
 
-    const client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+    // scale the k based on the length of the video.
+    const totalChunks = chunksWithMetadata.length;
+    const kPercentage = depth === "brief" ? 0.08 : 0.15; // 8% or 15%
+    const calculatedK = Math.ceil(totalChunks * kPercentage);
+    console.log("calculateK", calculatedK);
+
+    // Apply sensible max and min k bounds
+    const minK = depth === "brief" ? 6 : 10;
+    const maxK = depth === "brief" ? 20 : 35;
+    const finalK = Math.max(minK, Math.min(calculatedK, maxK));
+    console.log("finalK", finalK);
+
+    const retriever = vectorStore.asRetriever({
+      k: finalK, // Controls quantity, number of chunks to retrieve. This may need to be adjusted based on the length of the video
+      // filter: { // The filter parameter filters results by metadata fields stored in Pinecone. Actually already redudant here since we are using the namespace
+      //   videoId: {
+      //     $eq: videoInfo.videoDetails.videoId, // $eq = equals operato
+      //   },
+      // },
     });
 
-    // create summary for each trasncript chunk
-    const summaryResponses = await Promise.all(
-      transcriptChunks.map(async (chunk, index) => {
-        console.log("chunk", chunk);
-        const prompt = buildChunkExtractionPrompt(
-          chunk.join(" "),
-          includeTimestamps
-        );
-        console.log("prompt", prompt);
+    const retrievalQuery = `Extract the main points, key takeaways, and essential information from this YouTube video titled "${videoTitle}". Focus on the most important topics and concepts discussed.`;
+    const relevantChunks = await retriever.invoke(retrievalQuery);
+    const sortedRelevantChunks = relevantChunks.sort(
+      (a, b) => a.metadata.offset - b.metadata.offset
+    );
 
-        const response = await client.responses.create({
-          model: "gpt-5-nano",
-          input: prompt,
-        });
-        return response;
+    const formattedRelevantChunks = sortedRelevantChunks
+      .map((chunk) => {
+        const text = chunk.pageContent
+          .replace(/\n/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const metadata = chunk.metadata;
+
+        // calculate minuets and seconds
+        if (
+          includeTimestamps &&
+          metadata.offset !== undefined &&
+          metadata.offset !== null
+        ) {
+          const minutes = Math.floor(metadata.offset / 60);
+          const seconds = Math.floor(metadata.offset % 60);
+          const timestamp = `[${String(minutes).padStart(2, "0")}:${String(
+            seconds
+          ).padStart(2, "0")}]`;
+          return `${text} ${timestamp}`;
+        } else {
+          return text;
+        }
       })
-    );
+      .join("\n\n");
 
-    const summaryChunks = summaryResponses.map(
-      (response) => response.output_text
-    );
-    console.log("summaryChunks", summaryChunks);
-
-    const normalisedSummaryChunks = summaryChunks.map(
-      (chunk) =>
-        chunk
-          .replace(/[ \t]+/g, " ")
-          .replace(/\n{3,}/g, "\n\n")
-          .trim() // remove excess white space by replacing any sequence of spaces or tabs with a single space and three or more consecutive newlines with just two newlines
-    );
-    console.log("normalisedSummaryChunks", normalisedSummaryChunks);
-    const joinedSummaryChunks = normalisedSummaryChunks.join("\n\n");
-
-    // build final prompt with all the summary chunks joined together
-    const finalPrompt = buildFinalPrompt(
-      joinedSummaryChunks,
+    const summaryPrompt = buildSummaryPrompt(
+      formattedRelevantChunks,
       depth,
       style,
       includeTimestamps,
       videoTitle
     );
-    console.log("finalPrompt", finalPrompt);
-    const finalPromptResponse = await client.responses.create({
-      model: "gpt-5-nano",
-      input: finalPrompt,
-    });
-    console.log("finalPromptResponse", finalPromptResponse);
-    throw new Error("testing");
 
-    return NextResponse.json({ summary: "this is a summary" }, { status: 201 });
+    // Initialise the LLM
+    const llm = new ChatOpenAI({
+      model: "gpt-4o",
+      temperature: 0.1, // 0.0 = deterministic, 0.5 = balanced, 1.0 = creative
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const response = await llm.invoke(summaryPrompt);
+
+    return NextResponse.json({ summary: response.content }, { status: 201 });
   } catch (e) {
     console.error(e);
     return NextResponse.json(
