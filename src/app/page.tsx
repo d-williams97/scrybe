@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Play } from "lucide-react";
 import { InputMode, SummaryDepth, Style } from "./types";
-import { error } from "console";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("youtube");
@@ -20,6 +19,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [question, setQuestion] = useState("");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -30,7 +30,7 @@ export default function Home() {
     // hook up file logic if needed
   };
 
-  const handleSummarize = async () => {
+  const handleSummarise = async () => {
     if (inputMode === "youtube" && !youtubeUrl.trim()) return;
 
     console.log("youtubeUrl", youtubeUrl);
@@ -60,44 +60,15 @@ export default function Home() {
 
       const response = await res.json();
       console.log("response", response.summary);
-
-      // const { jobId } = (await res.json()) as { jobId: string };
-
-      // // Poll job status to drive progress bar
-      // const poll = async () => {
-      //   // create job status end point and use job id to check status in the end point
-      //   const res = await fetch(`/api/jobs?jobId=${jobId}`);
-      //   const data = await res.json();
-      //   console.log("data", data);
-      //   if (data.error) throw new Error(data.error);
-      //   setProgress(data.progress ?? 0);
-
-      //   if (data.status === "ready") {
-      //     const transcript = data.result?.transcript ?? "";
-      //     const summary = data.result?.summary ?? "";
-      //     const content = `# Generated Summary\n\n${summary}\n\n## Transcript\n${transcript}`;
-      //     setGeneratedNotes(content);
-      //     setShowNotes(true);
-      //     setIsLoading(false);
-      //     setProgress(100);
-      //     return;
-      //   }
-      //   if (data.status === "error") {
-      //     setGeneratedNotes(`Error: ${data.result?.error ?? "unknown"}`);
-      //     setShowNotes(true);
-      //     setIsLoading(false);
-      //     setProgress(100);
-      //     return;
-      //   }
-      //   // keep polling
-      //   setTimeout(poll, 600);
-      // };
-      // poll();
+      setGeneratedNotes(response.summary);
+      setShowNotes(true);
+      setIsLoading(false);
+      setProgress(100);
     } catch {
       console.log("job failed");
       setIsLoading(false);
       setProgress(0);
-      setGeneratedNotes(`Error starting job.`);
+      // setGeneratedNotes(`Error starting job.`);
       setShowNotes(true);
     }
   };
@@ -110,6 +81,12 @@ export default function Home() {
     a.download = "scrybe-notes.txt";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleQuestionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    // TODO: Add logic to handle question submission
+    console.log("Question submitted:", question);
   };
 
   return (
@@ -273,13 +250,13 @@ export default function Home() {
           <div className="flex justify-center">
             <Button
               className="px-8 py-3 rounded-lg"
-              onClick={handleSummarize}
+              onClick={handleSummarise}
               disabled={
                 isLoading || (inputMode === "youtube" && !youtubeUrl.trim())
               }
             >
               <Play className="w-4 h-4 mr-2" />
-              {isLoading ? "Generating..." : "Summarize"}
+              {isLoading ? "Generating..." : "Summarise"}
             </Button>
           </div>
 
@@ -287,7 +264,7 @@ export default function Home() {
             <div className="glow-card-intense p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-white">
-                  Generated Notes
+                  Generated Video Notes
                 </h3>
                 <Button
                   variant="outline"
@@ -304,6 +281,23 @@ export default function Home() {
                 className="min-h-[300px] font-mono text-sm resize-none"
                 placeholder="Your generated notes will appear here..."
               />
+
+              {generatedNotes.length > 0 && showNotes && (
+                <div className="mt-4">
+                  <h3 className="text-lg font-semibold text-white mb-3">
+                    Ask a Question
+                  </h3>
+                  <form onSubmit={handleQuestionSubmit}>
+                    <Input
+                      type="text"
+                      placeholder="Ask a question about the video"
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      className="w-full py-3 text-base border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
+                    />
+                  </form>
+                </div>
+              )}
             </div>
           )}
         </div>
