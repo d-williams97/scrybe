@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, Play } from "lucide-react";
 import { InputMode, SummaryDepth, Style } from "./types";
+import { Message } from "@/components/Message";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("youtube");
@@ -19,7 +20,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [question, setQuestion] = useState("");
+  const [queries, setQueries] = useState<{ index: number; query: string }[]>(
+    []
+  );
+  const [currentQuery, setCurrentQuery] = useState<string>("");
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -85,9 +89,26 @@ export default function Home() {
 
   const handleQuestionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Add logic to handle question submission
-    console.log("Question submitted:", question);
+    const formData = new FormData(e.target as HTMLFormElement);
+    const query = formData.get("query") as string;
+    const sanitisedQuery = query.trim();
+    if (sanitisedQuery.length < 1) return;
+    console.log("query", query);
+    setQueries((prev) => [
+      ...prev,
+      {
+        index: prev.length + 1,
+        query: sanitisedQuery,
+      },
+    ]);
+    setCurrentQuery("");
   };
+
+  const queryVideo = (query: string) => {
+    if (query.length < 0) return;
+  };
+
+  console.log("queries", queries);
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -285,14 +306,24 @@ export default function Home() {
               {generatedNotes.length > 0 && showNotes && (
                 <div className="mt-4">
                   <h3 className="text-lg font-semibold text-white mb-3">
-                    Ask a Question
+                    Video Query
                   </h3>
+                  {queries.map((query) => (
+                    <Message
+                      className="mb-[2rem]"
+                      text={query.query}
+                      key={query.index}
+                    />
+                  ))}
                   <form onSubmit={handleQuestionSubmit}>
                     <Input
                       type="text"
                       placeholder="Ask a question about the video"
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
+                      value={currentQuery}
+                      name="query"
+                      onChange={(e) => {
+                        setCurrentQuery(e.target.value);
+                      }}
                       className="w-full py-3 text-base border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
                     />
                   </form>
