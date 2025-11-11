@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Upload, Play } from "lucide-react";
 import { InputMode, SummaryDepth, Style } from "./types";
 import { Message } from "@/components/Message";
+import { nanoid } from "nanoid";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("youtube");
@@ -20,11 +21,11 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [queries, setQueries] = useState<{ index: number; query: string }[]>(
-    []
-  );
+  const [queries, setQueries] = useState<
+    { index: number; query: string; answer: string; queryId: string }[]
+  >([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
-
+  const [videoId, setVideoId] = useState<string>("");
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
   };
@@ -65,6 +66,7 @@ export default function Home() {
       const response = await res.json();
       console.log("response", response.summary);
       setGeneratedNotes(response.summary);
+      setVideoId(response.videoId);
       setShowNotes(true);
       setIsLoading(false);
       setProgress(100);
@@ -87,25 +89,56 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const handleQuestionSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleQuestionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const query = formData.get("query") as string;
     const sanitisedQuery = query.trim();
     if (sanitisedQuery.length < 1) return;
-    console.log("query", query);
+    const queryId = nanoid();
     setQueries((prev) => [
       ...prev,
       {
+        answer: "",
         index: prev.length + 1,
         query: sanitisedQuery,
+        queryId: queryId,
       },
     ]);
     setCurrentQuery("");
+    await queryVideo(sanitisedQuery, videoId, queryId);
   };
 
-  const queryVideo = (query: string) => {
-    if (query.length < 0) return;
+  const queryVideo = async (
+    query: string,
+    videoId: string,
+    queryId: string
+  ) => {
+    try {
+      if (query.length < 0 || !videoId) return;
+      const res = await fetch("/api/youtubeQuery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, videoId }),
+      });
+      if (!res.ok) {
+        throw new Error("Failed to query video");
+      }
+      const response = await res.json();
+
+      setQueries((prev) => {
+        return prev.map((q) =>
+          q.queryId === queryId
+            ? { ...q, answer: response.answer } // Update the matching query
+            : q
+        );
+      });
+      // setIsLoading(false);
+      // setProgress(100);
+    } catch (error) {
+      console.error("Error querying video", error);
+      return;
+    }
   };
 
   console.log("queries", queries);

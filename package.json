@@ -22,7 +22,7 @@
     "html-entities-decoder": "^1.0.5",
     "langchain": "^1.0.2",
     "lucide-react": "^0.536.0",
-    "nanoid": "^5.1.5",
+    "nanoid": "^5.1.6",
     "next": "15.4.5",
     "openai": "^5.23.2",
     "react": "19.1.0",

@@ -294,7 +294,10 @@ export async function POST(req: NextRequest) {
 
     const response = await llm.invoke(summaryPrompt);
 
-    return NextResponse.json({ summary: response.content }, { status: 201 });
+    return NextResponse.json(
+      { summary: response.content, videoId: videoInfo.videoDetails.videoId },
+      { status: 201 }
+    );
   } catch (e) {
     console.error(e);
     return NextResponse.json(
