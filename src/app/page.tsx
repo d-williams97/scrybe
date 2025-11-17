@@ -116,6 +116,9 @@ export default function Home() {
   ) => {
     try {
       if (query.length < 0 || !videoId) return;
+      console.log("query", query);
+      console.log("videoId", videoId);
+      console.log("queryId", queryId);
       const res = await fetch("/api/youtubeQuery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,7 +128,7 @@ export default function Home() {
         throw new Error("Failed to query video");
       }
       const response = await res.json();
-
+      console.log("response", response.answer);
       setQueries((prev) => {
         return prev.map((q) =>
           q.queryId === queryId
@@ -342,11 +345,14 @@ export default function Home() {
                     Video Query
                   </h3>
                   {queries.map((query) => (
-                    <Message
-                      className="mb-[2rem]"
-                      text={query.query}
-                      key={query.index}
-                    />
+                    <div key={query.index} className="mb-[1rem]">
+                      <Message
+                        className="mb-[1rem]"
+                        text={query.query}
+                        key={query.index}
+                      />
+                      <div className="text-white">{query.answer}</div>
+                    </div>
                   ))}
                   <form onSubmit={handleQuestionSubmit}>
                     <Input

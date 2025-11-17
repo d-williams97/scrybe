@@ -53,3 +53,19 @@ export interface CreateJobResponse {
 }
 
 export type GetJobResponse = Job;
+
+export interface Matches {
+  id: string;
+  score: number;
+  values: number[];
+  sparseValues: number[] | undefined;
+  metadata: RAGMetadata;
+}
+export interface RAGMetadata {
+  chunkIndex: number;
+  duration: number;
+  offset: number;
+  text: string;
+  videoId: string;
+  videoTitle: string;
+}

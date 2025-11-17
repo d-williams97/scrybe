@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { OpenAI } from "openai";
-import type { CreateYoutubeJobRequest } from "@/app/types";
+import type { Matches } from "@/app/types";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 function getKValue(query: string): number {
   const lowerQuery = query.toLowerCase();
 
-  // explanation, comparison, comprehensive, smummary/overview, how, why words are indicators of high complexity.
+  // explanation, comparison, comprehensive, summary/overview, how, why words are indicators of high complexity.
   const highComplexityKeywords = [
     "explain",
     "analyze",
@@ -98,19 +98,66 @@ export async function POST(req: NextRequest) {
     openAIApiKey: process.env.OPENAI_API_KEY,
   });
   const namespace = `youtube-${videoId}`;
-  const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
-    pineconeIndex: index,
-    namespace: namespace,
+
+  // k value is determines the quantity of chunks to retrieve from the vector store.
+  const kValue = getKValue(query);
+
+  // Use raw Pinecone query instead of LangChain retriever
+  //   // initialise the vector store
+  //   const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
+  //     pineconeIndex: index,
+  //     namespace: namespace,
+  //   });
+
+  // First, embed the query
+  const queryEmbedding = await embeddingsModel.embedQuery(query);
+
+  // Query Pinecone directly to get scores
+  const queryResponse = await index.namespace(namespace).query({
+    vector: queryEmbedding,
+    topK: kValue,
+    includeMetadata: true, // This includes your chunk metadata
   });
 
-  const retriever = vectorStore.asRetriever({
-    k: getKValue(query),
-    filter: {
-      scoreThreshold: 0.5,
-    },
-  });
+  console.log("queryResponse with scores:", queryResponse);
 
-  const relevantChunks = await retriever.invoke(query);
+  //   const retriever = vectorStore.asRetriever({
+  //     k: kValue,
+  //     // filter: {
+  //     //   scoreThreshold: 0.5, // 0.1 - 1 - The higher the stricter.
+  //     // },
+  //   });
+
+  //   const relevantChunks = await retriever.invoke(query);
+
+  // Extract scores from matches
+  const matches = queryResponse.matches as unknown as Matches[];
+  console.log("matches", matches);
+
+  if (matches.length === 0) {
+    return NextResponse.json({ error: "No relevant chunks found" });
+  }
+
+  // Get max score
+  const maxScore = Math.max(...matches.map((m) => m.score));
+  console.log("Max score:", maxScore);
+
+  // Determine score threshold based on max score (from your plan)
+  let scoreThreshold: number;
+  if (maxScore > 0.7) {
+    scoreThreshold = 0.6; // Strict filter
+  } else if (maxScore >= 0.5) {
+    scoreThreshold = 0.4; // Moderate filter
+  } else {
+    scoreThreshold = 0.3; // Lenient filter
+  }
+
+  console.log("Using score threshold:", scoreThreshold);
+
+  const relevantChunks = matches.filter(
+    (m) => m.score && m.score >= scoreThreshold
+  );
+
   console.log("relevantChunks", relevantChunks);
   if (relevantChunks.length === 0) {
     return NextResponse.json({ error: "No relevant chunks found" });
@@ -121,12 +168,11 @@ export async function POST(req: NextRequest) {
 
   const context = sortedRelevantChunks
     .map((chunk) => {
-      const text = chunk.pageContent
+      const metadata = chunk.metadata;
+      const text = metadata.text
         .replace(/\n/g, " ")
         .replace(/\s+/g, " ")
         .trim();
-      const metadata = chunk.metadata;
-
       // calculate minuets and seconds
       if (metadata?.offset) {
         const minutes = Math.floor(metadata.offset / 60);
@@ -141,17 +187,20 @@ export async function POST(req: NextRequest) {
     })
     .join("\n\n");
 
+  // context depth analysis using context
+  // if context is sufficient use the RAG only context without any general knowledge.
+  // - create rag only prompt
+  // if context is not sufficient use the RAG context with general knowledge.
+  // - create rag with general knowledge prompt
+
   // Initialise the LLM
   const llm = new ChatOpenAI({
     model: "gpt-4o",
-    temperature: 0.1, // 0.0 = deterministic, 0.5 = balanced, 1.0 = creative
+    temperature: 0.4, // 0.0 = deterministic, 0.5 = balanced, 1.0 = creative
     openAIApiKey: process.env.OPENAI_API_KEY,
   });
 
-  console.log("context", context);
-  console.log("query", query);
-
-  const userQueryPrompt = await llm.invoke(
+  const userQuery = await llm.invoke(
     `You are a helpful assistant answering questions about a YouTube video transcript.
     Use the following context from the video transcript to answer the user's question. If the context doesn't contain enough information to answer the question or the question is not related to the context, say so.
     Do not hallucinate information.
@@ -161,10 +210,10 @@ export async function POST(req: NextRequest) {
     
     User Question: 
     ${query}
-    Provide a clear, concise answer based on the context. If timestamps are available, you can reference them.`
+    Provide a clear, concise answer based on the context. If timestamps are available or relevant to the question, you can reference them.`
   );
 
-  console.log("userQueryPrompt", userQueryPrompt);
+  console.log("userQuery", userQuery.content);
 
-  return NextResponse.json({ relevantChunks });
+  return NextResponse.json({ answer: userQuery.content });
 }
