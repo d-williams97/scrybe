@@ -83,6 +83,101 @@ function getKValue(query: string): number {
   return kValue;
 }
 
+// Helper functions for context depth analysis
+function extractKeywords(query: string): string[] {
+  // Common English stop words to filter out
+  const stopWords = new Set([
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "has",
+    "he",
+    "in",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "that",
+    "the",
+    "to",
+    "was",
+    "were",
+    "will",
+    "with",
+    "about",
+    "can",
+    "could",
+    "do",
+    "does",
+    "did",
+    "have",
+    "had",
+    "how",
+    "i",
+    "if",
+    "into",
+    "may",
+    "might",
+    "should",
+    "this",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "would",
+    "you",
+    "your",
+    "me",
+    "my",
+    "or",
+    "but",
+  ]);
+
+  return query
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "") // Remove punctuation
+    .split(/\s+/) // Split on whitespace
+    .filter(
+      (word) =>
+        word.length > 2 && // Keep words longer than 2 chars
+        !stopWords.has(word) // Remove stop words
+    );
+}
+
+// function to calculate the keyword coverage of the query in the context
+function calculateKeywordCoverage(query: string, context: string): number {
+  // Extract meaningful keywords from query
+  const keywords = extractKeywords(query);
+
+  // Handle edge case: no keywords extracted
+  if (keywords.length === 0) {
+    return 0.5; // Neutral score for empty/stop-word-only queries
+  }
+
+  // Normalize context for matching
+  const contextLower = context.toLowerCase();
+
+  // Count how many query keywords appear in context
+  const matchedKeywords = keywords.filter((keyword) =>
+    contextLower.includes(keyword.toLowerCase())
+  );
+
+  // Calculate coverage ratio
+  const coverageScore = matchedKeywords.length / keywords.length;
+
+  return coverageScore;
+}
+
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as { query: string; videoId: string };
   const query = body.query;
@@ -99,17 +194,10 @@ export async function POST(req: NextRequest) {
   });
   const namespace = `youtube-${videoId}`;
 
-  // k value is determines the quantity of chunks to retrieve from the vector store.
+  // k value is determined by the query length and the complexity of the query.
+  // k value is used to retrieve the top k chunks from the vector store.
   const kValue = getKValue(query);
 
-  // Use raw Pinecone query instead of LangChain retriever
-  //   // initialise the vector store
-  //   const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
-  //     pineconeIndex: index,
-  //     namespace: namespace,
-  //   });
-
-  // First, embed the query
   const queryEmbedding = await embeddingsModel.embedQuery(query);
 
   // Query Pinecone directly to get scores
@@ -120,6 +208,13 @@ export async function POST(req: NextRequest) {
   });
 
   console.log("queryResponse with scores:", queryResponse);
+
+  // LangChain retriever implementation
+  //   // initialise the vector store
+  //   const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
+  //     pineconeIndex: index,
+  //     namespace: namespace,
+  //   });
 
   //   const retriever = vectorStore.asRetriever({
   //     k: kValue,
@@ -151,9 +246,9 @@ export async function POST(req: NextRequest) {
   } else {
     scoreThreshold = 0.3; // Lenient filter
   }
-
   console.log("Using score threshold:", scoreThreshold);
 
+  // Filter matches to get relevant chunks based on the score threshold.
   const relevantChunks = matches.filter(
     (m) => m.score && m.score >= scoreThreshold
   );
@@ -187,11 +282,83 @@ export async function POST(req: NextRequest) {
     })
     .join("\n\n");
 
-  // context depth analysis using context
-  // if context is sufficient use the RAG only context without any general knowledge.
-  // - create rag only prompt
-  // if context is not sufficient use the RAG context with general knowledge.
-  // - create rag with general knowledge prompt
+  // CONTEXT DEPTH ANALYSIS.
+
+  // quantitive measures of the context depth
+  const chunkCount = sortedRelevantChunks.length;
+  const totalWords = sortedRelevantChunks.reduce(
+    (acc, chunk) => acc + chunk.metadata.text.split(" ").length,
+    0
+  );
+  const averageScore =
+    matches.reduce((acc, match) => acc + match.score, 0) / matches.length;
+  const keywordCoverageScore = calculateKeywordCoverage(query, context);
+
+  // Add this function for the LLM sufficiency check for qualitative analysis
+  async function evaluateContextSufficiency(
+    context: string,
+    query: string,
+    chunkCount: number,
+    totalWords: number,
+    keywordCoverage: number
+  ): Promise<{
+    sufficient: boolean;
+    coverage: number;
+    depth: "shallow" | "moderate" | "comprehensive";
+    reasoning: string;
+  }> {
+    const prompt = `You are evaluating if retrieved video transcript context is sufficient to answer a user's question.
+  
+  QUANTITATIVE METRICS:
+  - Chunks retrieved: ${chunkCount}
+  - Total words: ${totalWords}
+  - Keyword coverage: ${(keywordCoverage * 100).toFixed(0)}%
+  
+  RETRIEVED CONTEXT:
+  ${context}
+  
+  USER QUESTION:
+  ${query}
+  
+  Evaluate these 3 aspects:
+  1. Does the context cover all aspects of the question?
+  2. Is there enough depth/detail to provide a meaningful answer?
+  3. What percentage of the question can be answered with this context?
+  
+  Respond ONLY with valid JSON (no markdown):
+  {
+    "sufficient": true or false,
+    "coverage": 0-100,
+    "depth": "shallow" or "moderate" or "comprehensive",
+    "reasoning": "brief explanation"
+  }`;
+
+    try {
+      const llm = new ChatOpenAI({
+        model: "gpt-4o",
+        temperature: 0.1,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+      });
+
+      const response = await llm.invoke(prompt);
+
+      // Extract JSON from response
+      const jsonMatch = String(response.content).match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      throw new Error("No JSON found in response");
+    } catch (error) {
+      console.error("Failed to parse LLM sufficiency response:", error);
+      // Fallback
+      return {
+        sufficient: false,
+        coverage: 50,
+        depth: "moderate",
+        reasoning: "Unable to parse evaluation",
+      };
+    }
+  }
 
   // Initialise the LLM
   const llm = new ChatOpenAI({
@@ -200,20 +367,73 @@ export async function POST(req: NextRequest) {
     openAIApiKey: process.env.OPENAI_API_KEY,
   });
 
-  const userQuery = await llm.invoke(
-    `You are a helpful assistant answering questions about a YouTube video transcript.
-    Use the following context from the video transcript to answer the user's question. If the context doesn't contain enough information to answer the question or the question is not related to the context, say so.
-    Do not hallucinate information.
-    Context from video:
-    
-    ${context}.
-    
-    User Question: 
-    ${query}
-    Provide a clear, concise answer based on the context. If timestamps are available or relevant to the question, you can reference them.`
-  );
+  const sufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
-  console.log("userQuery", userQuery.content);
+Use ONLY the following context from the video transcript to answer the user's question. Do not use external knowledge or hallucinate information.
 
-  return NextResponse.json({ answer: userQuery.content });
+Context from video:
+${context}
+
+User Question: 
+${query}
+
+Provide a clear, detailed answer based strictly on the context above. Reference timestamps when relevant.`;
+
+  const insufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
+
+Answer the user's question using the video context below as your primary source of information. You can use external knowledge if the information from the video context is not sufficient to answer the question. 
+Clearly indicate in your response information that is from the video context and information that is from external knowledge.
+
+Context from video:
+${context}
+
+User Question: 
+${query}
+
+Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.
+  `;
+  // INSUFFICIENT: Clear indicators of poor context
+  if (
+    chunkCount < 2 ||
+    totalWords < 100 ||
+    averageScore < 0.35 ||
+    keywordCoverageScore < 0.25
+  ) {
+    // early return. Return to use message to the user.
+  }
+  // SUFFICIENT: Clear indicators of good context
+  else if (
+    chunkCount >= 5 &&
+    totalWords >= 300 &&
+    averageScore >= 0.65 &&
+    keywordCoverageScore >= 0.7
+  ) {
+    // run the LLM with the RAG only context.
+    const response = await llm.invoke(sufficientContextQuery);
+    console.log("response", response.content);
+    return NextResponse.json({ answer: response.content });
+  }
+
+  // AMBIGUOUS: Everything in between - needs LLM evaluation
+  else {
+    // run the LLM with the RAG context and general knowledge.
+    const llmCheck = await evaluateContextSufficiency(
+      context,
+      query,
+      chunkCount,
+      totalWords,
+      keywordCoverageScore
+    );
+    if (llmCheck.sufficient) {
+      // run the LLM with the RAG only context.
+      const response = await llm.invoke(sufficientContextQuery);
+      console.log("response", response.content);
+      return NextResponse.json({ answer: response.content });
+    } else {
+      // run the LLM with the RAG context and general knowledge.
+      const response = await llm.invoke(insufficientContextQuery);
+      console.log("response", response.content);
+      return NextResponse.json({ answer: response.content });
+    }
+  }
 }
