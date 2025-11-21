@@ -254,8 +254,20 @@ export async function POST(req: NextRequest) {
   );
 
   console.log("relevantChunks", relevantChunks);
+
   if (relevantChunks.length === 0) {
-    return NextResponse.json({ error: "No relevant chunks found" });
+    return NextResponse.json({
+      answer: `I couldn't find any relevant information in this video related to "${query}". This topic doesn't appear to be covered in the video transcript.`,
+      metadata: {
+        contextQuality: "insufficient",
+        reason: "no_chunks_found",
+        chunkCount: 0,
+        totalWords: 0,
+        maxScore: maxScore,
+        suggestion:
+          "Try asking about a different topic that's covered in the video, or rephrase your question using different keywords.",
+      },
+    });
   }
   const sortedRelevantChunks = relevantChunks.sort(
     (a, b) => a.metadata.offset - b.metadata.offset
@@ -392,7 +404,7 @@ ${query}
 
 Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.
   `;
-  // INSUFFICIENT: Clear indicators of poor context
+  // INSUFFICIENT: poor quantitative metrics
   if (
     chunkCount < 2 ||
     totalWords < 100 ||
@@ -400,6 +412,41 @@ Provide a clear, detailed answer based on the context above. Reference timestamp
     keywordCoverageScore < 0.25
   ) {
     // early return. Return to use message to the user.
+    let reason = "";
+    if (chunkCount < 2) {
+      reason = "only found very few relevant sections";
+    } else if (totalWords < 100) {
+      reason = "found limited detail on this topic";
+    } else if (averageScore < 0.35) {
+      reason = "the retrieved content has low relevance";
+    } else if (keywordCoverageScore < 0.25) {
+      reason = "the video content doesn't match your question well";
+    }
+
+    return NextResponse.json({
+      answer: `I couldn't find sufficient information in this video to properly answer your question about "${query}". The video ${
+        chunkCount === 0
+          ? "doesn't appear to cover this topic"
+          : `only briefly mentions this topic (${chunkCount} relevant section${
+              chunkCount === 1 ? "" : "s"
+            }, ~${totalWords} words)`
+      }.`,
+      metadata: {
+        contextQuality: "insufficient",
+        reason: reason,
+        metrics: {
+          chunkCount,
+          totalWords,
+          averageScore: parseFloat(averageScore.toFixed(2)),
+          keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
+          maxScore: parseFloat(maxScore.toFixed(2)),
+        },
+        suggestion:
+          chunkCount > 0
+            ? "The video touches on this briefly. Try asking a more specific question about what was mentioned, or explore a different aspect of the video."
+            : "Try rephrasing your question or asking about a topic that's more central to the video's content.",
+      },
+    });
   }
   // SUFFICIENT: Clear indicators of good context
   else if (
