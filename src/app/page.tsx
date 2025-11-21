@@ -90,10 +90,12 @@ export default function Home() {
   };
 
   const handleQuestionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    console.log("handleQuestionSubmit");
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const query = formData.get("query") as string;
     const sanitisedQuery = query.trim();
+    console.log("sanitisedQuery", sanitisedQuery);
     if (sanitisedQuery.length < 1) return;
     const queryId = nanoid();
     setQueries((prev) => [
@@ -115,6 +117,9 @@ export default function Home() {
     queryId: string
   ) => {
     try {
+      console.log("queryVideo");
+      console.log("query", query);
+      console.log("videoId", videoId);
       if (query.length < 0 || !videoId) return;
       console.log("query", query);
       console.log("videoId", videoId);
@@ -163,7 +168,7 @@ export default function Home() {
       <div className="viewport-glow flex flex-col items-center justify-center px-8 relative z-10">
         <div className="text-center max-w-7xl mx-auto">
           <h1 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white mb-12 leading-tight">
-            from videos to notes in seconds
+            turn youtube videos into notes in seconds
           </h1>
 
           <div className="flex justify-center gap-2 mb-6">

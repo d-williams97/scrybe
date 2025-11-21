@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OpenAI } from "openai";
-import type { Matches } from "@/app/types";
+// import { OpenAI } from "openai";
+import type { Matches, QueryResponse } from "@/app/types";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
-import { PineconeStore } from "@langchain/pinecone";
+// import { PineconeStore } from "@langchain/pinecone";
 export const runtime = "nodejs";
 
 function getKValue(query: string): number {
@@ -178,148 +178,20 @@ function calculateKeywordCoverage(query: string, context: string): number {
   return coverageScore;
 }
 
-export async function POST(req: NextRequest) {
-  const body = (await req.json()) as { query: string; videoId: string };
-  const query = body.query;
-  const videoId = body.videoId;
-  console.log("query", query);
-
-  const pc = new Pinecone({
-    apiKey: process.env.PINECONE_API_KEY as string,
-  });
-  const index = pc.Index(process.env.PINECONE_INDEX_NAME as string);
-  const embeddingsModel = new OpenAIEmbeddings({
-    modelName: "text-embedding-3-small",
-    openAIApiKey: process.env.OPENAI_API_KEY,
-  });
-  const namespace = `youtube-${videoId}`;
-
-  // k value is determined by the query length and the complexity of the query.
-  // k value is used to retrieve the top k chunks from the vector store.
-  const kValue = getKValue(query);
-
-  const queryEmbedding = await embeddingsModel.embedQuery(query);
-
-  // Query Pinecone directly to get scores
-  const queryResponse = await index.namespace(namespace).query({
-    vector: queryEmbedding,
-    topK: kValue,
-    includeMetadata: true, // This includes your chunk metadata
-  });
-
-  console.log("queryResponse with scores:", queryResponse);
-
-  // LangChain retriever implementation
-  //   // initialise the vector store
-  //   const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
-  //     pineconeIndex: index,
-  //     namespace: namespace,
-  //   });
-
-  //   const retriever = vectorStore.asRetriever({
-  //     k: kValue,
-  //     // filter: {
-  //     //   scoreThreshold: 0.5, // 0.1 - 1 - The higher the stricter.
-  //     // },
-  //   });
-
-  //   const relevantChunks = await retriever.invoke(query);
-
-  // Extract scores from matches
-  const matches = queryResponse.matches as unknown as Matches[];
-  console.log("matches", matches);
-
-  if (matches.length === 0) {
-    return NextResponse.json({ error: "No relevant chunks found" });
-  }
-
-  // Get max score
-  const maxScore = Math.max(...matches.map((m) => m.score));
-  console.log("Max score:", maxScore);
-
-  // Determine score threshold based on max score (from your plan)
-  let scoreThreshold: number;
-  if (maxScore > 0.7) {
-    scoreThreshold = 0.6; // Strict filter
-  } else if (maxScore >= 0.5) {
-    scoreThreshold = 0.4; // Moderate filter
-  } else {
-    scoreThreshold = 0.3; // Lenient filter
-  }
-  console.log("Using score threshold:", scoreThreshold);
-
-  // Filter matches to get relevant chunks based on the score threshold.
-  const relevantChunks = matches.filter(
-    (m) => m.score && m.score >= scoreThreshold
-  );
-
-  console.log("relevantChunks", relevantChunks);
-
-  if (relevantChunks.length === 0) {
-    return NextResponse.json({
-      answer: `I couldn't find any relevant information in this video related to "${query}". This topic doesn't appear to be covered in the video transcript.`,
-      metadata: {
-        contextQuality: "insufficient",
-        reason: "no_chunks_found",
-        chunkCount: 0,
-        totalWords: 0,
-        maxScore: maxScore,
-        suggestion:
-          "Try asking about a different topic that's covered in the video, or rephrase your question using different keywords.",
-      },
-    });
-  }
-  const sortedRelevantChunks = relevantChunks.sort(
-    (a, b) => a.metadata.offset - b.metadata.offset
-  );
-
-  const context = sortedRelevantChunks
-    .map((chunk) => {
-      const metadata = chunk.metadata;
-      const text = metadata.text
-        .replace(/\n/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      // calculate minuets and seconds
-      if (metadata?.offset) {
-        const minutes = Math.floor(metadata.offset / 60);
-        const seconds = Math.floor(metadata.offset % 60);
-        const timestamp = `[${String(minutes).padStart(2, "0")}:${String(
-          seconds
-        ).padStart(2, "0")}]`;
-        return `${text} ${timestamp}`;
-      } else {
-        return text;
-      }
-    })
-    .join("\n\n");
-
-  // CONTEXT DEPTH ANALYSIS.
-
-  // quantitive measures of the context depth
-  const chunkCount = sortedRelevantChunks.length;
-  const totalWords = sortedRelevantChunks.reduce(
-    (acc, chunk) => acc + chunk.metadata.text.split(" ").length,
-    0
-  );
-  const averageScore =
-    matches.reduce((acc, match) => acc + match.score, 0) / matches.length;
-  const keywordCoverageScore = calculateKeywordCoverage(query, context);
-
-  // Add this function for the LLM sufficiency check for qualitative analysis
-  async function evaluateContextSufficiency(
-    context: string,
-    query: string,
-    chunkCount: number,
-    totalWords: number,
-    keywordCoverage: number
-  ): Promise<{
-    sufficient: boolean;
-    coverage: number;
-    depth: "shallow" | "moderate" | "comprehensive";
-    reasoning: string;
-  }> {
-    const prompt = `You are evaluating if retrieved video transcript context is sufficient to answer a user's question.
+// Add this function for the LLM sufficiency check for qualitative analysis
+async function evaluateContextSufficiency(
+  context: string,
+  query: string,
+  chunkCount: number,
+  totalWords: number,
+  keywordCoverage: number
+): Promise<{
+  sufficient: boolean;
+  coverage: number;
+  depth: "shallow" | "moderate" | "comprehensive";
+  reasoning: string;
+}> {
+  const prompt = `You are evaluating if retrieved video transcript context is sufficient to answer a user's question.
   
   QUANTITATIVE METRICS:
   - Chunks retrieved: ${chunkCount}
@@ -345,41 +217,188 @@ export async function POST(req: NextRequest) {
     "reasoning": "brief explanation"
   }`;
 
-    try {
-      const llm = new ChatOpenAI({
-        model: "gpt-4o",
-        temperature: 0.1,
-        openAIApiKey: process.env.OPENAI_API_KEY,
-      });
+  try {
+    const llm = new ChatOpenAI({
+      model: "gpt-4o",
+      temperature: 0.1,
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
 
-      const response = await llm.invoke(prompt);
+    const response = await llm.invoke(prompt);
 
-      // Extract JSON from response
-      const jsonMatch = String(response.content).match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      throw new Error("No JSON found in response");
-    } catch (error) {
-      console.error("Failed to parse LLM sufficiency response:", error);
-      // Fallback
-      return {
-        sufficient: false,
-        coverage: 50,
-        depth: "moderate",
-        reasoning: "Unable to parse evaluation",
-      };
+    console.log("ambiguous response LLM check: ", response.content);
+
+    // Extract JSON from response
+    const jsonMatch = String(response.content).match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
     }
+    throw new Error("No JSON found in response");
+  } catch (error) {
+    console.error("Failed to parse LLM sufficiency response:", error);
+    // Fallback
+    return {
+      sufficient: false,
+      coverage: 50,
+      depth: "moderate",
+      reasoning: "Unable to parse evaluation",
+    };
   }
+}
 
-  // Initialise the LLM
-  const llm = new ChatOpenAI({
-    model: "gpt-4o",
-    temperature: 0.4, // 0.0 = deterministic, 0.5 = balanced, 1.0 = creative
-    openAIApiKey: process.env.OPENAI_API_KEY,
-  });
+export async function POST(req: NextRequest) {
+  try {
+    const body = (await req.json()) as { query: string; videoId: string };
+    const query = body.query;
+    const videoId = body.videoId;
 
-  const sufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
+    const pc = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY as string,
+    });
+    const index = pc.Index(process.env.PINECONE_INDEX_NAME as string);
+    const embeddingsModel = new OpenAIEmbeddings({
+      modelName: "text-embedding-3-small",
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+    const namespace = `youtube-${videoId}`;
+
+    // k value is determined by the query length and the complexity of the query.
+    // k value is used to retrieve the top k chunks from the vector store.
+    const kValue = getKValue(query);
+
+    const queryEmbedding = await embeddingsModel.embedQuery(query);
+
+    // Query Pinecone directly to get scores
+    const queryResponse = await index.namespace(namespace).query({
+      vector: queryEmbedding,
+      topK: kValue,
+      includeMetadata: true, // This includes your chunk metadata
+    });
+
+    // LangChain retriever implementation
+    //   // initialise the vector store
+    //   const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
+    //     pineconeIndex: index,
+    //     namespace: namespace,
+    //   });
+
+    //   const retriever = vectorStore.asRetriever({
+    //     k: kValue,
+    //     // filter: {
+    //     //   scoreThreshold: 0.5, // 0.1 - 1 - The higher the stricter.
+    //     // },
+    //   });
+
+    //   const relevantChunks = await retriever.invoke(query);
+
+    // Extract scores from matches
+    const matches = queryResponse.matches as unknown as Matches[];
+    console.log("matches", matches);
+
+    if (matches.length === 0) {
+      return NextResponse.json<QueryResponse>({
+        answer: "No relevant chunks found",
+        metadata: {
+          contextQuality: "insufficient",
+          strategy: "error",
+          metrics: {
+            chunkCount: 0,
+            totalWords: 0,
+            avgScore: 0,
+            keywordCoverage: 0,
+            maxScore: 0,
+          },
+          suggestion:
+            "Try asking about a different topic that's covered in the video, or rephrase your question using different keywords.",
+        },
+      });
+    }
+
+    // Get max score
+    const maxScore = Math.max(...matches.map((m) => m.score));
+    console.log("Max score:", maxScore);
+
+    // Determine score threshold based on max score (from your plan)
+    let scoreThreshold: number;
+    if (maxScore > 0.7) {
+      scoreThreshold = 0.6; // Strict filter
+    } else if (maxScore >= 0.5) {
+      scoreThreshold = 0.4; // Moderate filter
+    } else {
+      scoreThreshold = 0.3; // Lenient filter
+    }
+    console.log("Using score threshold:", scoreThreshold);
+
+    // Filter matches to get relevant chunks based on the score threshold.
+    const relevantChunks = matches.filter(
+      (m) => m.score && m.score >= scoreThreshold
+    );
+
+    console.log("relevantChunks", relevantChunks);
+
+    if (relevantChunks.length === 0) {
+      return NextResponse.json<QueryResponse>({
+        answer: `I couldn't find any relevant information in this video related to "${query}". This topic doesn't appear to be covered in the video transcript.`,
+        metadata: {
+          contextQuality: "insufficient",
+          strategy: "error",
+          metrics: {
+            chunkCount: 0,
+            totalWords: 0,
+            avgScore: 0,
+            keywordCoverage: 0,
+            maxScore: 0,
+          },
+          suggestion:
+            "Try asking about a different topic that's covered in the video, or rephrase your question using different keywords.",
+        },
+      });
+    }
+    const sortedRelevantChunks = relevantChunks.sort(
+      (a, b) => a.metadata.offset - b.metadata.offset
+    );
+
+    const context = sortedRelevantChunks
+      .map((chunk) => {
+        const metadata = chunk.metadata;
+        const text = metadata.text
+          .replace(/\n/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        // calculate minuets and seconds
+        if (metadata?.offset) {
+          const minutes = Math.floor(metadata.offset / 60);
+          const seconds = Math.floor(metadata.offset % 60);
+          const timestamp = `[${String(minutes).padStart(2, "0")}:${String(
+            seconds
+          ).padStart(2, "0")}]`;
+          return `${text} ${timestamp}`;
+        } else {
+          return text;
+        }
+      })
+      .join("\n\n");
+
+    // CONTEXT DEPTH ANALYSIS.
+
+    // quantitive measures of the context depth
+    const chunkCount = sortedRelevantChunks.length;
+    const totalWords = sortedRelevantChunks.reduce(
+      (acc, chunk) => acc + chunk.metadata.text.split(" ").length,
+      0
+    );
+    const averageScore =
+      matches.reduce((acc, match) => acc + match.score, 0) / matches.length;
+    const keywordCoverageScore = calculateKeywordCoverage(query, context);
+
+    // Initialise the LLM
+    const llm = new ChatOpenAI({
+      model: "gpt-4o",
+      temperature: 0.4, // 0.0 = deterministic, 0.5 = balanced, 1.0 = creative
+      openAIApiKey: process.env.OPENAI_API_KEY,
+    });
+
+    const sufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
 Use ONLY the following context from the video transcript to answer the user's question. Do not use external knowledge or hallucinate information.
 
@@ -391,7 +410,7 @@ ${query}
 
 Provide a clear, detailed answer based strictly on the context above. Reference timestamps when relevant.`;
 
-  const insufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
+    const insufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
 Answer the user's question using the video context below as your primary source of information. You can use external knowledge if the information from the video context is not sufficient to answer the question. 
 Clearly indicate in your response information that is from the video context and information that is from external knowledge.
@@ -404,83 +423,173 @@ ${query}
 
 Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.
   `;
-  // INSUFFICIENT: poor quantitative metrics
-  if (
-    chunkCount < 2 ||
-    totalWords < 100 ||
-    averageScore < 0.35 ||
-    keywordCoverageScore < 0.25
-  ) {
-    // early return. Return to use message to the user.
-    let reason = "";
-    if (chunkCount < 2) {
-      reason = "only found very few relevant sections";
-    } else if (totalWords < 100) {
-      reason = "found limited detail on this topic";
-    } else if (averageScore < 0.35) {
-      reason = "the retrieved content has low relevance";
-    } else if (keywordCoverageScore < 0.25) {
-      reason = "the video content doesn't match your question well";
-    }
+    // INSUFFICIENT: poor quantitative metrics
+    console.log("chunkCount", chunkCount);
+    console.log("totalWords", totalWords);
+    console.log("averageScore", averageScore);
+    console.log("keywordCoverageScore", keywordCoverageScore);
+    if (
+      chunkCount < 2 ||
+      totalWords < 100 ||
+      averageScore < 0.35 ||
+      keywordCoverageScore < 0.25
+    ) {
+      // early return. Return to use message to the user.
+      console.log("INSUFFICIENT: poor quantitative metrics");
+      let reason = "";
+      if (chunkCount === 0) {
+        reason = "doesn't appear to cover this topic";
+      } else if (chunkCount < 2) {
+        reason = "only found very few relevant sections";
+      } else if (totalWords < 100) {
+        reason = "found limited detail on this topic";
+      } else if (averageScore < 0.35) {
+        reason = "the retrieved content has low relevance";
+      } else if (keywordCoverageScore < 0.25) {
+        reason = "the video content doesn't match your question well";
+      }
 
-    return NextResponse.json({
-      answer: `I couldn't find sufficient information in this video to properly answer your question about "${query}". The video ${
-        chunkCount === 0
-          ? "doesn't appear to cover this topic"
-          : `only briefly mentions this topic (${chunkCount} relevant section${
-              chunkCount === 1 ? "" : "s"
-            }, ~${totalWords} words)`
-      }.`,
-      metadata: {
-        contextQuality: "insufficient",
-        reason: reason,
-        metrics: {
-          chunkCount,
-          totalWords,
-          averageScore: parseFloat(averageScore.toFixed(2)),
-          keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
-          maxScore: parseFloat(maxScore.toFixed(2)),
+      return NextResponse.json<QueryResponse>({
+        answer: `I couldn't find sufficient information in this video to properly answer your question about "${query}". The video ${reason}.`,
+        metadata: {
+          contextQuality: "insufficient",
+          strategy: "error",
+          metrics: {
+            chunkCount,
+            totalWords,
+            avgScore: parseFloat(averageScore.toFixed(2)),
+            keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
+            maxScore: parseFloat(maxScore.toFixed(2)),
+          },
+          suggestion:
+            chunkCount > 0
+              ? "The video touches on this briefly. Try asking a more specific question about what was mentioned, or explore a different aspect of the video."
+              : "Try rephrasing your question or asking about a topic that's more central to the video's content.",
         },
-        suggestion:
-          chunkCount > 0
-            ? "The video touches on this briefly. Try asking a more specific question about what was mentioned, or explore a different aspect of the video."
-            : "Try rephrasing your question or asking about a topic that's more central to the video's content.",
-      },
-    });
-  }
-  // SUFFICIENT: Clear indicators of good context
-  else if (
-    chunkCount >= 5 &&
-    totalWords >= 300 &&
-    averageScore >= 0.65 &&
-    keywordCoverageScore >= 0.7
-  ) {
-    // run the LLM with the RAG only context.
-    const response = await llm.invoke(sufficientContextQuery);
-    console.log("response", response.content);
-    return NextResponse.json({ answer: response.content });
-  }
-
-  // AMBIGUOUS: Everything in between - needs LLM evaluation
-  else {
-    // run the LLM with the RAG context and general knowledge.
-    const llmCheck = await evaluateContextSufficiency(
-      context,
-      query,
-      chunkCount,
-      totalWords,
-      keywordCoverageScore
-    );
-    if (llmCheck.sufficient) {
-      // run the LLM with the RAG only context.
-      const response = await llm.invoke(sufficientContextQuery);
-      console.log("response", response.content);
-      return NextResponse.json({ answer: response.content });
-    } else {
-      // run the LLM with the RAG context and general knowledge.
-      const response = await llm.invoke(insufficientContextQuery);
-      console.log("response", response.content);
-      return NextResponse.json({ answer: response.content });
+      });
     }
+    // SUFFICIENT: Clear indicators of good context
+    else if (
+      chunkCount >= 5 &&
+      totalWords >= 300 &&
+      averageScore >= 0.65 &&
+      keywordCoverageScore >= 0.7 &&
+      maxScore >= 0.7
+    ) {
+      // run the LLM with the RAG only context.
+      console.log("SUFFICIENT: clear indicators of good context");
+      const response = await llm.invoke(sufficientContextQuery);
+      console.log("response is sufficient and RAG only", response.content);
+
+      // Validate response content
+      if (!response?.content || typeof response.content !== "string") {
+        throw new Error("LLM returned invalid response content");
+      }
+
+      // process the response content to be a string
+      return NextResponse.json<QueryResponse>({
+        answer: response.content,
+        metadata: {
+          contextQuality: "comprehensive",
+          strategy: "strict_rag",
+          metrics: {
+            chunkCount,
+            totalWords,
+            avgScore: parseFloat(averageScore.toFixed(2)),
+            keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
+            maxScore: parseFloat(maxScore.toFixed(2)),
+          },
+          suggestion: undefined,
+        },
+      });
+    }
+
+    // AMBIGUOUS: Everything in between - needs LLM evaluation
+    else {
+      // run the LLM with the RAG context and general knowledge.
+      console.log("AMBIGUOUS: everything in between - needs LLM evaluation");
+      const llmCheck = await evaluateContextSufficiency(
+        context,
+        query,
+        chunkCount,
+        totalWords,
+        keywordCoverageScore
+      );
+      if (llmCheck.sufficient) {
+        // run the LLM with the RAG only context.
+        const response = await llm.invoke(sufficientContextQuery);
+
+        // Validate response content
+        if (!response?.content || typeof response.content !== "string") {
+          throw new Error("LLM returned invalid response content");
+        }
+
+        return NextResponse.json<QueryResponse>({
+          answer: response.content,
+          metadata: {
+            contextQuality: "ambiguous",
+            strategy: "strict_rag",
+            metrics: {
+              chunkCount,
+              totalWords,
+              avgScore: parseFloat(averageScore.toFixed(2)),
+              keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
+              maxScore: parseFloat(maxScore.toFixed(2)),
+            },
+            suggestion: undefined,
+          },
+        });
+      } else {
+        // run the LLM with the RAG context and general knowledge.
+        const response = await llm.invoke(insufficientContextQuery);
+        console.log("response is RAG and general knowledge", response.content);
+
+        // Validate response content
+        if (!response?.content || typeof response.content !== "string") {
+          throw new Error("LLM returned invalid response content");
+        }
+
+        return NextResponse.json<QueryResponse>({
+          answer: response.content,
+          metadata: {
+            contextQuality: "ambiguous",
+            strategy: "hybrid",
+            metrics: {
+              chunkCount,
+              totalWords,
+              avgScore: parseFloat(averageScore.toFixed(2)),
+              keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
+              maxScore: parseFloat(maxScore.toFixed(2)),
+            },
+            suggestion: undefined,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    // Centralized error handling for all errors in the RAG flow
+    console.error("Error in RAG flow:", error);
+
+    return NextResponse.json<QueryResponse>(
+      {
+        answer:
+          "I encountered an error while processing your question. Please try again.",
+        metadata: {
+          contextQuality: "error",
+          strategy: "error",
+          metrics: {
+            chunkCount: 0,
+            totalWords: 0,
+            avgScore: 0,
+            keywordCoverage: 0,
+            maxScore: 0,
+          },
+          error:
+            error instanceof Error ? error.message : "Unknown error occurred",
+          suggestion: "Please try again or rephrase your question.",
+        },
+      },
+      { status: 500 }
+    );
   }
 }

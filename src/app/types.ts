@@ -69,3 +69,25 @@ export interface RAGMetadata {
   videoId: string;
   videoTitle: string;
 }
+
+export interface QueryResponse {
+  answer: string;
+  metadata?: {
+    contextQuality: "insufficient" | "comprehensive" | "ambiguous" | "error";
+    strategy: "strict_rag" | "hybrid" | "error";
+    metrics?: {
+      chunkCount: number;
+      totalWords: number;
+      avgScore: number;
+      keywordCoverage: number;
+      maxScore: number;
+    };
+    suggestion?: string;
+    llmEvaluation?: {
+      coverage: number;
+      depth: string;
+      reasoning: string;
+    };
+    error?: string;
+  };
+}
