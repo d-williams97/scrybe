@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Play } from "lucide-react";
-import { SummaryDepth, Style } from "./types";
+import { SummaryDepth, Style, Queries } from "./types";
 import { Message } from "@/components/Message";
 import { nanoid } from "nanoid";
 
@@ -20,24 +20,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [queries, setQueries] = useState<
-    { index: number; query: string; answer: string; queryId: string }[]
-  >([]);
+  const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    // hook up file logic if needed
-  };
 
   const handleSummarise = async () => {
     if (!youtubeUrl.trim()) return;
-
-    console.log("youtubeUrl", youtubeUrl);
 
     setIsLoading(true);
     setProgress(0);
@@ -170,8 +158,8 @@ export default function Home() {
             turn youtube videos into notes in seconds
           </h1>
 
-          <p className="text-gray-400 text-sm md:text-base font-medium tracking-wide uppercase">
-            Transcribe and summarise a video by pasting a youtube link
+          <p className="text-gray-400 text-md md:text-lg font-medium tracking-wide uppercase">
+            Transcribe and summarise a video by pasting a youtube link below
           </p>
         </div>
       </div>
@@ -303,32 +291,65 @@ export default function Home() {
               />
 
               {generatedNotes.length > 0 && showNotes && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold text-white mb-3">
-                    Video Query
+                <div className="mt-8 border-t border-white/10 pt-6">
+                  <h3 className="text-lg font-semibold text-white mb-4">
+                    Ask Scrybe
                   </h3>
-                  {queries.map((query) => (
-                    <div key={query.index} className="mb-[1rem]">
-                      <Message
-                        className="mb-[1rem]"
-                        text={query.query}
-                        key={query.index}
-                      />
-                      <div className="text-white">{query.answer}</div>
+
+                  <div className="relative">
+                    {/* Scrollable container for messages */}
+                    <div className="max-h-[400px] overflow-y-auto mb-4 pr-2 space-y-4 custom-scrollbar">
+                      {queries.length === 0 && (
+                        <p className="text-gray-400 text-center py-8 italic">
+                          Ask a question about the video content...
+                        </p>
+                      )}
+                      {queries.map((query) => (
+                        <div key={query.index} className="mb-4">
+                          <div className="flex justify-end mb-2">
+                            <div className="bg-primary/20 text-white px-4 py-2 rounded-2xl rounded-tr-sm max-w-[80%]">
+                              {query.query}
+                            </div>
+                          </div>
+                          <div className="flex justify-start">
+                            <div className="bg-white/5 text-gray-200 px-4 py-2 rounded-2xl rounded-tl-sm max-w-[90%] border border-white/10">
+                              {query.answer || (
+                                <span className="animate-pulse">
+                                  Thinking...
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <form onSubmit={handleQuestionSubmit}>
-                    <Input
-                      type="text"
-                      placeholder="Ask a question about the video"
-                      value={currentQuery}
-                      name="query"
-                      onChange={(e) => {
-                        setCurrentQuery(e.target.value);
-                      }}
-                      className="w-full py-3 text-base border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
-                    />
-                  </form>
+
+                    {/* Fixed position input area within the relative container */}
+                    <div className="sticky bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 pt-2 pb-1 border-t border-white/5">
+                      <form
+                        onSubmit={handleQuestionSubmit}
+                        className="relative"
+                      >
+                        <Input
+                          type="text"
+                          placeholder="Ask Scrybe a question about the video..."
+                          value={currentQuery}
+                          name="query"
+                          onChange={(e) => setCurrentQuery(e.target.value)}
+                          className="w-full h-12 pl-4 pr-12 text-base border border-white/20 rounded-xl bg-white/5 text-white placeholder-gray-400 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                        />
+                        <Button
+                          type="submit"
+                          size="icon"
+                          variant="ghost"
+                          className="absolute right-1 top-1 bottom-1 text-primary hover:text-primary/80 hover:bg-transparent"
+                          disabled={!currentQuery.trim()}
+                        >
+                          <Play className="w-5 h-5" />
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

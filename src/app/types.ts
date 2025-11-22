@@ -69,6 +69,13 @@ export interface RAGMetadata {
   videoTitle: string;
 }
 
+export interface Queries {
+  index: number;
+  query: string;
+  answer: string;
+  queryId: string;
+}
+
 export interface QueryResponse {
   answer: string;
   metadata?: {
