@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Play } from "lucide-react";
-import { InputMode, SummaryDepth, Style } from "./types";
+import { Play } from "lucide-react";
+import { SummaryDepth, Style } from "./types";
 import { Message } from "@/components/Message";
 import { nanoid } from "nanoid";
 
 export default function Home() {
-  const [inputMode, setInputMode] = useState<InputMode>("youtube");
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [summaryDepth, setSummaryDepth] = useState<SummaryDepth>("brief");
   const [style, setStyle] = useState<Style>("academic");
@@ -36,7 +35,7 @@ export default function Home() {
   };
 
   const handleSummarise = async () => {
-    if (inputMode === "youtube" && !youtubeUrl.trim()) return;
+    if (!youtubeUrl.trim()) return;
 
     console.log("youtubeUrl", youtubeUrl);
 
@@ -171,27 +170,8 @@ export default function Home() {
             turn youtube videos into notes in seconds
           </h1>
 
-          <div className="flex justify-center gap-2 mb-6">
-            <Button
-              variant={inputMode === "youtube" ? "default" : "outline"}
-              onClick={() => setInputMode("youtube")}
-              className="rounded-lg text-lg px-8 py-4"
-            >
-              YouTube
-            </Button>
-            <Button
-              variant={inputMode === "upload" ? "default" : "outline"}
-              onClick={() => setInputMode("upload")}
-              className="rounded-lg text-lg px-8 py-4"
-            >
-              Upload
-            </Button>
-          </div>
-
           <p className="text-gray-400 text-sm md:text-base font-medium tracking-wide uppercase">
-            {inputMode === "upload"
-              ? "Transcribe and summarise a video through file upload"
-              : "Transcribe and summarise a video by pasting a youtube link"}
+            Transcribe and summarise a video by pasting a youtube link
           </p>
         </div>
       </div>
@@ -199,34 +179,14 @@ export default function Home() {
       <div className="relative z-20 bg-background">
         <div className="max-w-4xl mx-auto space-y-8 px-8 py-8">
           <div className="p-8 bg-background border border-white/10 rounded-lg">
-            {inputMode === "youtube" ? (
-              <div className="glow-input">
-                <Input
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  value={youtubeUrl}
-                  onChange={(e) => setYoutubeUrl(e.target.value)}
-                  className="w-full text-center py-6 text-lg border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
-                />
-              </div>
-            ) : (
-              <div
-                className="glow-dropzone border-2 border-dashed border-gray-600 rounded-lg p-12 text-center space-y-4 hover:border-gray-400 transition-colors"
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-              >
-                <div className="flex justify-center">
-                  <Upload className="w-12 h-12 text-gray-400" />
-                </div>
-                <div className="space-y-2">
-                  <p className="text-lg text-gray-300">
-                    Upload or drag a file here
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Supports .mp4 .mov .webm .mp3 .wav (≤ 20 min)
-                  </p>
-                </div>
-              </div>
-            )}
+            <div className="glow-input">
+              <Input
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={youtubeUrl}
+                onChange={(e) => setYoutubeUrl(e.target.value)}
+                className="w-full text-center py-6 text-lg border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
+              />
+            </div>
           </div>
 
           <div className="glow-card p-6">
@@ -313,9 +273,7 @@ export default function Home() {
             <Button
               className="px-8 py-3 rounded-lg"
               onClick={handleSummarise}
-              disabled={
-                isLoading || (inputMode === "youtube" && !youtubeUrl.trim())
-              }
+              disabled={isLoading || !youtubeUrl.trim()}
             >
               <Play className="w-4 h-4 mr-2" />
               {isLoading ? "Generating..." : "Summarise"}

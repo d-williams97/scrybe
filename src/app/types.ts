@@ -5,7 +5,6 @@ export type SummaryStyle =
   | "revision"
   | "paragraph";
 
-export type InputMode = "youtube" | "upload";
 export type SummaryDepth = "brief" | "in-depth";
 export type Style =
   | "academic"
