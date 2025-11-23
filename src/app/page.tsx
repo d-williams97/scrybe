@@ -87,7 +87,9 @@ export default function Home() {
       }
 
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const blob = new Blob([new Uint8Array(pdfBytes)], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -335,6 +337,20 @@ export default function Home() {
 
           {showNotes && (
             <div className="glow-card-intense p-6" ref={notesSectionRef}>
+              {/* Embedded YouTube video preview – only shown once a video has been summarised */}
+              {videoId && (
+                <div className="mb-4 overflow-hidden rounded-xl border border-white/10 bg-black">
+                  <div className="relative w-full pb-[56.25%]">
+                    <iframe
+                      src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`}
+                      title="YouTube video preview"
+                      className="absolute inset-0 h-full w-full"
+                      allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                </div>
+              )}
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-white">
                   Generated Video Notes
