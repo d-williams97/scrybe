@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Play } from "lucide-react";
 import { SummaryDepth, Style, Queries } from "./types";
-import { Message } from "@/components/Message";
 import { nanoid } from "nanoid";
 
 export default function Home() {
@@ -23,6 +22,18 @@ export default function Home() {
   const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
+  const notesSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showNotes && generatedNotes.length > 0 && notesSectionRef.current) {
+      setTimeout(() => {
+        notesSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 100);
+    }
+  }, [showNotes, generatedNotes]);
 
   const handleSummarise = async () => {
     if (!youtubeUrl.trim()) return;
@@ -245,15 +256,9 @@ export default function Home() {
 
           {isLoading && (
             <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-white text-lg">Generating your notes...</p>
-              </div>
-              <div className="rainbow-progress h-3">
-                <div
-                  className="rainbow-progress-fill h-full"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+              <span className="animate-pulse bg-gradient-to-r from-[#ff006e] via-[#8b5cf6] to-[#06ffa5] bg-clip-text text-transparent">
+                Summarising video into notes...
+              </span>
             </div>
           )}
 
@@ -269,7 +274,7 @@ export default function Home() {
           </div>
 
           {showNotes && (
-            <div className="glow-card-intense p-6">
+            <div className="glow-card-intense p-6" ref={notesSectionRef}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-white">
                   Generated Video Notes
@@ -292,17 +297,13 @@ export default function Home() {
 
               {generatedNotes.length > 0 && showNotes && (
                 <div className="mt-8 border-t border-white/10 pt-6">
-                  <h3 className="text-lg font-semibold text-white mb-4">
-                    Ask Scrybe
-                  </h3>
-
                   <div className="relative">
                     {/* Scrollable container for messages */}
                     <div className="max-h-[400px] overflow-y-auto mb-4 pr-2 space-y-4 custom-scrollbar">
                       {queries.length === 0 && (
-                        <p className="text-gray-400 text-center py-8 italic">
-                          Ask a question about the video content...
-                        </p>
+                        <h3 className="text-lg font-semibold mb-4 text-center bg-gradient-to-r from-[#ff006e] via-[#8b5cf6] to-[#06ffa5] bg-clip-text text-transparent">
+                          Ask Scrybe a question about the video content.
+                        </h3>
                       )}
                       {queries.map((query) => (
                         <div key={query.index} className="mb-4">
@@ -314,7 +315,7 @@ export default function Home() {
                           <div className="flex justify-start">
                             <div className="bg-white/5 text-gray-200 px-4 py-2 rounded-2xl rounded-tl-sm max-w-[90%] border border-white/10">
                               {query.answer || (
-                                <span className="animate-pulse">
+                                <span className="animate-pulse bg-gradient-to-r from-[#ff006e] via-[#8b5cf6] to-[#06ffa5] bg-clip-text text-transparent">
                                   Thinking...
                                 </span>
                               )}
