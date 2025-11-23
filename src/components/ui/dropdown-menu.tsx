@@ -8,9 +8,8 @@ type DropdownMenuContextValue = {
   setOpen: (open: boolean) => void;
 };
 
-const DropdownMenuContext = React.createContext<DropdownMenuContextValue | null>(
-  null
-);
+const DropdownMenuContext =
+  React.createContext<DropdownMenuContextValue | null>(null);
 
 function useDropdownMenuContext() {
   const ctx = React.useContext(DropdownMenuContext);
@@ -81,7 +80,11 @@ function DropdownMenuContent({
   if (!open) return null;
 
   const alignmentClass =
-    align === "end" ? "right-0" : align === "center" ? "left-1/2 -translate-x-1/2" : "left-0";
+    align === "end"
+      ? "right-0"
+      : align === "center"
+      ? "left-1/2 -translate-x-1/2"
+      : "left-0";
 
   return (
     <div
@@ -128,6 +131,9 @@ function DropdownMenuItem({
   );
 }
 
-export { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem };
-
-
+export {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+};
