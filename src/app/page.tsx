@@ -9,6 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Play } from "lucide-react";
 import { SummaryDepth, Style, Queries } from "./types";
 import { nanoid } from "nanoid";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -18,7 +25,6 @@ export default function Home() {
   const [generatedNotes, setGeneratedNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
@@ -35,11 +41,80 @@ export default function Home() {
     }
   }, [showNotes, generatedNotes]);
 
+  type DownloadFormat = "txt" | "md" | "pdf";
+
+  const downloadNotes = async (format: DownloadFormat) => {
+    if (!generatedNotes) return;
+
+    if (format === "pdf") {
+      // Create a simple PDF with the notes text
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage();
+      const { width, height } = page.getSize();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const fontSize = 12;
+      const margin = 50;
+      const lineHeight = fontSize + 4;
+      const maxWidth = width - margin * 2;
+
+      // Basic word-wrap
+      const words = generatedNotes.split(/\s+/);
+      const lines: string[] = [];
+      let currentLine = "";
+
+      words.forEach((word) => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const textWidth = font.widthOfTextAtSize(testLine, fontSize);
+        if (textWidth > maxWidth && currentLine) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine = testLine;
+        }
+      });
+      if (currentLine) lines.push(currentLine);
+
+      let y = height - margin;
+      for (const line of lines) {
+        if (y < margin) break; // simple single-page guard
+        page.drawText(line, {
+          x: margin,
+          y,
+          size: fontSize,
+          font,
+        });
+        y -= lineHeight;
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "scrybe-notes.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    // txt and md: same plain text content, different extension
+    const extension = format === "md" ? "md" : "txt";
+
+    const blob = new Blob([generatedNotes], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `scrybe-notes.${extension}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSummarise = async () => {
     if (!youtubeUrl.trim()) return;
 
     setIsLoading(true);
-    setProgress(0);
     setShowNotes(false);
 
     try {
@@ -55,7 +130,6 @@ export default function Home() {
       });
       if (!res.ok) {
         setIsLoading(false);
-        setProgress(0);
         setShowNotes(false);
         console.log("summarise failed");
         throw new Error("Failed to start job");
@@ -67,24 +141,12 @@ export default function Home() {
       setVideoId(response.videoId);
       setShowNotes(true);
       setIsLoading(false);
-      setProgress(100);
     } catch {
       console.log("job failed");
       setIsLoading(false);
-      setProgress(0);
       // setGeneratedNotes(`Error starting job.`);
       setShowNotes(true);
     }
-  };
-
-  const downloadNotes = () => {
-    const blob = new Blob([generatedNotes], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "scrybe-notes.txt";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleQuestionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -139,8 +201,6 @@ export default function Home() {
             : q
         );
       });
-      // setIsLoading(false);
-      // setProgress(100);
     } catch (error) {
       console.error("Error querying video", error);
       return;
@@ -279,13 +339,24 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-white">
                   Generated Video Notes
                 </h3>
-                <Button
-                  variant="outline"
-                  onClick={downloadNotes}
-                  className="rounded-lg"
-                >
-                  Download .txt
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger>
+                    <Button variant="outline" className="rounded-lg">
+                      Download
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => void downloadNotes("txt")}>
+                      Plain Text (.txt)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void downloadNotes("md")}>
+                      Markdown (.md)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => void downloadNotes("pdf")}>
+                      PDF (.pdf)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <Textarea
