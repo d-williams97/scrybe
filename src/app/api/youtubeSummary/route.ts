@@ -292,12 +292,38 @@ export async function POST(req: NextRequest) {
       openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    const response = await llm.invoke(summaryPrompt);
+    const stream = await llm.stream(summaryPrompt); // gte llm stream
+    const encoder = new TextEncoder(); // Converts JavaScript strings into Uint8Array bytes for the stream.
+    const readable = new ReadableStream({
+      // ReadableStream: a Web Streams API object that produces chunks over time.
+      async start(controller) {
+        // controller manages the stream
+        try {
+          for await (const chunk of stream) {
+            console.log("chunk", chunk);
+            const content = chunk.content;
+            console.log("content", content);
+            if (content) {
+              controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
+            }
+          }
+          controller.enqueue(
+            encoder.encode(`\n__VIDEO_ID__:${videoInfo.videoDetails.videoId}`)
+          );
+          controller.close(); // signals the stream is complete.
+        } catch (error) {
+          controller.error(error);
+        }
+      },
+    });
 
-    return NextResponse.json(
-      { summary: response.content, videoId: videoInfo.videoDetails.videoId },
-      { status: 201 }
-    );
+    // Returns a streaming Response with chunked transfer encoding. This is a HTTP response that allows the client to receive the stream in chunks.
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+      },
+    });
   } catch (e) {
     console.error(e);
     return NextResponse.json(

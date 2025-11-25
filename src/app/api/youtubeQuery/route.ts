@@ -478,28 +478,32 @@ Provide a clear, detailed answer based on the context above. Reference timestamp
     ) {
       // run the LLM with the RAG only context.
       console.log("SUFFICIENT: clear indicators of good context");
-      const response = await llm.invoke(sufficientContextQuery);
-      console.log("response is sufficient and RAG only", response.content);
+      const stream = await llm.stream(sufficientContextQuery);
 
-      // Validate response content
-      if (!response?.content || typeof response.content !== "string") {
-        throw new Error("LLM returned invalid response content");
-      }
+      const encoder = new TextEncoder();
+      const readable = new ReadableStream({
+        async start(controller) {
+          // controller manages the stream
+          try {
+            for await (const chunk of stream) {
+              console.log("chunk", chunk);
+              const content = chunk.content;
+              console.log("content", content);
+              if (content) {
+                controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
+              }
+            }
+            controller.close(); // signals the stream is complete.
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+      });
 
-      // process the response content to be a string
-      return NextResponse.json<QueryResponse>({
-        answer: response.content,
-        metadata: {
-          contextQuality: "comprehensive",
-          strategy: "strict_rag",
-          metrics: {
-            chunkCount,
-            totalWords,
-            avgScore: parseFloat(averageScore.toFixed(2)),
-            keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
-            maxScore: parseFloat(maxScore.toFixed(2)),
-          },
-          suggestion: undefined,
+      return new Response(readable, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Transfer-Encoding": "chunked",
         },
       });
     }
@@ -517,78 +521,64 @@ Provide a clear, detailed answer based on the context above. Reference timestamp
       );
       if (llmCheck.sufficient) {
         // run the LLM with the RAG only context.
-        const response = await llm.invoke(sufficientContextQuery);
-
-        // Validate response content
-        if (!response?.content || typeof response.content !== "string") {
-          throw new Error("LLM returned invalid response content");
-        }
-
-        return NextResponse.json<QueryResponse>({
-          answer: response.content,
-          metadata: {
-            contextQuality: "ambiguous",
-            strategy: "strict_rag",
-            metrics: {
-              chunkCount,
-              totalWords,
-              avgScore: parseFloat(averageScore.toFixed(2)),
-              keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
-              maxScore: parseFloat(maxScore.toFixed(2)),
-            },
-            suggestion: undefined,
+        const stream = await llm.stream(sufficientContextQuery);
+        const encoder = new TextEncoder();
+        const readable = new ReadableStream({
+          async start(controller) {
+            try {
+              for await (const chunk of stream) {
+                console.log("chunk", chunk);
+                const content = chunk.content;
+                console.log("content", content);
+                if (content) {
+                  controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
+                }
+              }
+              controller.close(); // signals the stream is complete.
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        });
+        return new Response(readable, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Transfer-Encoding": "chunked",
           },
         });
       } else {
         // run the LLM with the RAG context and general knowledge.
-        const response = await llm.invoke(insufficientContextQuery);
-        console.log("response is RAG and general knowledge", response.content);
-
-        // Validate response content
-        if (!response?.content || typeof response.content !== "string") {
-          throw new Error("LLM returned invalid response content");
-        }
-
-        return NextResponse.json<QueryResponse>({
-          answer: response.content,
-          metadata: {
-            contextQuality: "ambiguous",
-            strategy: "hybrid",
-            metrics: {
-              chunkCount,
-              totalWords,
-              avgScore: parseFloat(averageScore.toFixed(2)),
-              keywordCoverage: parseFloat(keywordCoverageScore.toFixed(2)),
-              maxScore: parseFloat(maxScore.toFixed(2)),
-            },
-            suggestion: undefined,
+        const stream = await llm.stream(insufficientContextQuery);
+        const encoder = new TextEncoder();
+        const readable = new ReadableStream({
+          async start(controller) {
+            try {
+              for await (const chunk of stream) {
+                console.log("chunk", chunk);
+                const content = chunk.content;
+                console.log("content", content);
+                if (content) {
+                  controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
+                }
+              }
+              controller.close(); // signals the stream is complete.
+            } catch (error) {
+              controller.error(error);
+            }
+          },
+        });
+        return new Response(readable, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Transfer-Encoding": "chunked",
           },
         });
       }
     }
   } catch (error) {
-    // Centralized error handling for all errors in the RAG flow
     console.error("Error in RAG flow:", error);
-
-    return NextResponse.json<QueryResponse>(
-      {
-        answer:
-          "I encountered an error while processing your question. Please try again.",
-        metadata: {
-          contextQuality: "error",
-          strategy: "error",
-          metrics: {
-            chunkCount: 0,
-            totalWords: 0,
-            avgScore: 0,
-            keywordCoverage: 0,
-            maxScore: 0,
-          },
-          error:
-            error instanceof Error ? error.message : "Unknown error occurred",
-          suggestion: "Please try again or rephrase your question.",
-        },
-      },
+    return NextResponse.json(
+      { error: "Internal server error: " + error },
       { status: 500 }
     );
   }

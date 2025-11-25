@@ -24,14 +24,13 @@ export default function Home() {
   const [includeTimestamps, setIncludeTimestamps] = useState(true);
   const [generatedNotes, setGeneratedNotes] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showNotes, setShowNotes] = useState(false);
   const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const notesSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (showNotes && generatedNotes.length > 0 && notesSectionRef.current) {
+    if (generatedNotes.length > 0 && notesSectionRef.current) {
       setTimeout(() => {
         notesSectionRef.current?.scrollIntoView({
           behavior: "smooth",
@@ -39,7 +38,7 @@ export default function Home() {
         });
       }, 100);
     }
-  }, [showNotes, generatedNotes]);
+  }, [generatedNotes]);
 
   type DownloadFormat = "txt" | "md" | "pdf";
 
@@ -117,7 +116,6 @@ export default function Home() {
     if (!youtubeUrl.trim()) return;
 
     setIsLoading(true);
-    setShowNotes(false);
 
     try {
       const res = await fetch("/api/youtubeSummary", {
@@ -130,34 +128,40 @@ export default function Home() {
           includeTimestamps,
         }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         setIsLoading(false);
-        setShowNotes(false);
-        console.log("summarise failed");
         throw new Error("Failed to start job");
       }
 
-      const response = await res.json();
-      console.log("response", response.summary);
-      setGeneratedNotes(response.summary);
-      setVideoId(response.videoId);
-      setShowNotes(true);
+      const reader = res.body.getReader(); // getReader: a Web Streams API method that returns a reader object that allows you to read the stream.
+      const decoder = new TextDecoder(); // TextDecoder: a Web API that allows you to decode a stream of Uint8Array  bytes into a string.
+      let summary = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        // Check for videoId marker
+        if (chunk.includes("__VIDEO_ID__:")) {
+          const [text, videoIdPart] = chunk.split("__VIDEO_ID__:");
+          summary += text;
+          setVideoId(videoIdPart.trim());
+        } else {
+          summary += chunk;
+          setGeneratedNotes(summary); // Update in real-time
+        }
+      }
       setIsLoading(false);
     } catch {
       console.log("job failed");
       setIsLoading(false);
-      // setGeneratedNotes(`Error starting job.`);
-      setShowNotes(true);
     }
   };
 
   const handleQuestionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    console.log("handleQuestionSubmit");
     e.preventDefault();
     const formData = new FormData(e.target as HTMLFormElement);
     const query = formData.get("query") as string;
     const sanitisedQuery = query.trim();
-    console.log("sanitisedQuery", sanitisedQuery);
     if (sanitisedQuery.length < 1) return;
     const queryId = nanoid();
     setQueries((prev) => [
@@ -191,25 +195,32 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, videoId }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
+        setIsLoading(false);
         throw new Error("Failed to query video");
       }
-      const response = await res.json();
-      console.log("response", response.answer);
-      setQueries((prev) => {
-        return prev.map((q) =>
-          q.queryId === queryId
-            ? { ...q, answer: response.answer } // Update the matching query
-            : q
-        );
-      });
+      const reader = res.body.getReader(); // getReader: a Web Streams API method that returns a reader object that allows you to read the stream.
+      const decoder = new TextDecoder(); // TextDecoder: a Web API that allows you to decode a stream of Uint8Array  bytes into a string.
+      let answer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        answer += chunk;
+        setQueries((prev) => {
+          return prev.map((q) =>
+            q.queryId === queryId
+              ? { ...q, answer: answer } // Update the matching query
+              : q
+          );
+        });
+      }
+      setIsLoading(false);
     } catch (error) {
       console.error("Error querying video", error);
       return;
     }
   };
-
-  console.log("queries", queries);
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -335,7 +346,7 @@ export default function Home() {
             </Button>
           </div>
 
-          {showNotes && (
+          {generatedNotes.length > 0 && (
             <div className="glow-card-intense p-6" ref={notesSectionRef}>
               {/* Embedded YouTube video preview – only shown once a video has been summarised */}
               {videoId && (
@@ -382,7 +393,7 @@ export default function Home() {
                 placeholder="Your generated notes will appear here..."
               />
 
-              {generatedNotes.length > 0 && showNotes && (
+              {generatedNotes.length > 0 && (
                 <div className="mt-8 border-t border-white/10 pt-6">
                   <div className="relative">
                     {/* Scrollable container for messages */}
