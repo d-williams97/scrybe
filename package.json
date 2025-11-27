@@ -16,6 +16,7 @@
     "@pinecone-database/pinecone": "^5.1.2",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "@tailwindcss/typography": "^0.5.19",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "he": "^1.2.0",
@@ -28,6 +29,8 @@
     "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.3.1",
     "youtube-transcript-plus": "^1.1.1",
     "ytdl-core": "^4.11.5"

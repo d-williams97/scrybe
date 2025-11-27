@@ -388,7 +388,8 @@ export async function POST(req: NextRequest) {
       0
     );
     const averageScore =
-      matches.reduce((acc, match) => acc + match.score, 0) / matches.length;
+      sortedRelevantChunks.reduce((acc, chunk) => acc + chunk.score, 0) /
+      sortedRelevantChunks.length;
     const keywordCoverageScore = calculateKeywordCoverage(query, context);
 
     // Initialise the LLM
@@ -401,6 +402,8 @@ export async function POST(req: NextRequest) {
     const sufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
 Use ONLY the following context from the video transcript to answer the user's question. Do not use external knowledge or hallucinate information.
+
+**Format your response in well-structured Markdown.** Use headings, bullet points, **bold** for emphasis, and code blocks where appropriate.
 
 Context from video:
 ${context}
@@ -415,14 +418,15 @@ Provide a clear, detailed answer based strictly on the context above. Reference 
 Answer the user's question using the video context below as your primary source of information. You can use external knowledge if the information from the video context is not sufficient to answer the question. 
 Clearly indicate in your response information that is from the video context and information that is from external knowledge.
 
+**Format your response in well-structured Markdown.** Use headings, bullet points, **bold** for emphasis, and code blocks where appropriate.
+
 Context from video:
 ${context}
 
 User Question: 
 ${query}
 
-Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.
-  `;
+Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.`;
     // INSUFFICIENT: poor quantitative metrics
     console.log("chunkCount", chunkCount);
     console.log("totalWords", totalWords);

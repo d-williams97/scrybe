@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Play } from "lucide-react";
+import { Play, Pencil, Eye } from "lucide-react";
 import { SummaryDepth, Style, Queries } from "./types";
 import { nanoid } from "nanoid";
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -16,6 +16,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -27,6 +28,7 @@ export default function Home() {
   const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
+  const [isEditMode, setIsEditMode] = useState(false);
   const notesSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,7 +140,15 @@ export default function Home() {
       let summary = "";
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          // Flush any remaining buffered bytes from incomplete multi-byte sequences
+          const finalChunk = decoder.decode();
+          if (finalChunk) {
+            summary += finalChunk;
+            setGeneratedNotes(summary);
+          }
+          break;
+        }
         const chunk = decoder.decode(value, { stream: true });
         // Check for videoId marker
         if (chunk.includes("__VIDEO_ID__:")) {
@@ -183,42 +193,98 @@ export default function Home() {
     queryId: string
   ) => {
     try {
-      console.log("queryVideo");
-      console.log("query", query);
-      console.log("videoId", videoId);
-      if (query.length < 0 || !videoId) return;
-      console.log("query", query);
-      console.log("videoId", videoId);
-      console.log("queryId", queryId);
+      if (query.length < 1 || !videoId) return;
+
       const res = await fetch("/api/youtubeQuery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query, videoId }),
       });
-      if (!res.ok || !res.body) {
-        setIsLoading(false);
-        throw new Error("Failed to query video");
-      }
-      const reader = res.body.getReader(); // getReader: a Web Streams API method that returns a reader object that allows you to read the stream.
-      const decoder = new TextDecoder(); // TextDecoder: a Web API that allows you to decode a stream of Uint8Array  bytes into a string.
-      let answer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        answer += chunk;
-        setQueries((prev) => {
-          return prev.map((q) =>
-            q.queryId === queryId
-              ? { ...q, answer: answer } // Update the matching query
-              : q
+
+      if (!res.ok) {
+        // Try to parse error as JSON
+        try {
+          const errorData = await res.json();
+          const errorMessage =
+            errorData.answer ||
+            errorData.error ||
+            "Sorry, something went wrong. Please try again.";
+          setQueries((prev) =>
+            prev.map((q) =>
+              q.queryId === queryId ? { ...q, answer: errorMessage } : q
+            )
           );
-        });
+        } catch {
+          setQueries((prev) =>
+            prev.map((q) =>
+              q.queryId === queryId
+                ? {
+                    ...q,
+                    answer: "Sorry, something went wrong. Please try again.",
+                  }
+                : q
+            )
+          );
+        }
+        return;
       }
-      setIsLoading(false);
+
+      // Check Content-Type to determine response format
+      const contentType = res.headers.get("Content-Type") || "";
+
+      if (contentType.includes("application/json")) {
+        // Handle JSON response (error/insufficient context cases)
+        const jsonData = await res.json();
+        const answer =
+          jsonData.answer || "No answer available for this question.";
+        setQueries((prev) =>
+          prev.map((q) =>
+            q.queryId === queryId ? { ...q, answer: answer } : q
+          )
+        );
+      } else {
+        // Handle streaming response (success cases)
+        if (!res.body) {
+          throw new Error("No response body");
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let answer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            // Flush any remaining buffered bytes from incomplete multi-byte sequences
+            const finalChunk = decoder.decode();
+            if (finalChunk) {
+              answer += finalChunk;
+              setQueries((prev) =>
+                prev.map((q) =>
+                  q.queryId === queryId ? { ...q, answer: answer } : q
+                )
+              );
+            }
+            break;
+          }
+          const chunk = decoder.decode(value, { stream: true });
+          answer += chunk;
+          setQueries((prev) =>
+            prev.map((q) =>
+              q.queryId === queryId ? { ...q, answer: answer } : q
+            )
+          );
+        }
+      }
     } catch (error) {
       console.error("Error querying video", error);
-      return;
+      setQueries((prev) =>
+        prev.map((q) =>
+          q.queryId === queryId
+            ? { ...q, answer: "Sorry, an error occurred. Please try again." }
+            : q
+        )
+      );
     }
   };
 
@@ -366,32 +432,64 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-white">
                   Generated Video Notes
                 </h3>
-                <DropdownMenu>
-                  <DropdownMenuTrigger>
-                    <Button variant="outline" className="rounded-lg">
-                      Download
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => void downloadNotes("txt")}>
-                      Plain Text (.txt)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void downloadNotes("md")}>
-                      Markdown (.md)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void downloadNotes("pdf")}>
-                      PDF (.pdf)
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className="rounded-lg"
+                  >
+                    {isEditMode ? (
+                      <>
+                        <Eye className="w-4 h-4 mr-1" />
+                        Preview
+                      </>
+                    ) : (
+                      <>
+                        <Pencil className="w-4 h-4 mr-1" />
+                        Edit
+                      </>
+                    )}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger>
+                      <Button variant="outline" className="rounded-lg">
+                        Download
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => void downloadNotes("txt")}
+                      >
+                        Plain Text (.txt)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => void downloadNotes("md")}
+                      >
+                        Markdown (.md)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => void downloadNotes("pdf")}
+                      >
+                        PDF (.pdf)
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
 
-              <Textarea
-                value={generatedNotes}
-                onChange={(e) => setGeneratedNotes(e.target.value)}
-                className="min-h-[300px] font-mono text-sm resize-none"
-                placeholder="Your generated notes will appear here..."
-              />
+              {isEditMode ? (
+                <Textarea
+                  value={generatedNotes}
+                  onChange={(e) => setGeneratedNotes(e.target.value)}
+                  className="min-h-[300px] font-mono text-sm resize-none"
+                  placeholder="Your generated notes will appear here..."
+                />
+              ) : (
+                <div className="min-h-[300px] bg-white/5 rounded-lg p-4 overflow-y-auto">
+                  <MarkdownRenderer content={generatedNotes} />
+                </div>
+              )}
 
               {generatedNotes.length > 0 && (
                 <div className="mt-8 border-t border-white/10 pt-6">
@@ -412,7 +510,9 @@ export default function Home() {
                           </div>
                           <div className="flex justify-start">
                             <div className="bg-white/5 text-gray-200 px-4 py-2 rounded-2xl rounded-tl-sm max-w-[90%] border border-white/10">
-                              {query.answer || (
+                              {query.answer ? (
+                                <MarkdownRenderer content={query.answer} />
+                              ) : (
                                 <span className="animate-pulse bg-gradient-to-r from-[#ff006e] via-[#8b5cf6] to-[#06ffa5] bg-clip-text text-transparent">
                                   Thinking...
                                 </span>

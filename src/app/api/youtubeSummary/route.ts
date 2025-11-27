@@ -28,25 +28,28 @@ export async function POST(req: NextRequest) {
   ) {
     const depthText = depth === "brief" ? "120–180 words" : "250–400 words";
     return `
-  You are an expert note taker. Create a final summary from the below notes extracted from the transcript of a Youtube video titled "${videoTitle}". 
-  
-  - Use British English. 
-  - No invented facts.
-  - Ignore any notes that do not relevant to the overarching theme of the video i.e jokes, etc.
-  - Target length: ${depthText}.
-  - Style: ${style}.
-  - ${
-    includeTimestamps
-      ? "If a point maps to a provided [mm:ss], keep it in parentheses. Do NOT invent times."
-      : "Do not include timestamps."
-  }
-  - No meta text; output only the formatted summary.
-  
-  ${videoTitle && `Title: ${videoTitle}.`}
-  
-  Structured notes:
-  ${text}
-  `.trim();
+You are an expert note taker. Create a final summary from the below notes extracted from the transcript of a Youtube video titled "${videoTitle}". 
+
+**Output your response in well-formatted Markdown.**
+
+- Use British English. 
+- No invented facts.
+- Ignore any notes that do not relevant to the overarching theme of the video i.e jokes, etc.
+- Target length: ${depthText}.
+- Style: ${style}.
+- ${
+      includeTimestamps
+        ? "If a point maps to a provided [mm:ss], keep it in parentheses. Do NOT invent times."
+        : "Do not include timestamps."
+    }
+- No meta text; output only the formatted summary.
+- Use headings (##), bullet points, **bold** for key terms, and other Markdown formatting as appropriate.
+
+${videoTitle && `Title: ${videoTitle}.`}
+
+Structured notes:
+${text}
+`.trim();
   }
 
   try {
