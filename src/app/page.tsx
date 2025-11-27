@@ -5,8 +5,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
-import { Play, Pencil, Eye } from "lucide-react";
+import { Play } from "lucide-react";
 import { SummaryDepth, Style, Queries } from "./types";
 import { nanoid } from "nanoid";
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -28,7 +27,6 @@ export default function Home() {
   const [queries, setQueries] = useState<Queries[]>([]);
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
-  const [isEditMode, setIsEditMode] = useState(false);
   const notesSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +42,7 @@ export default function Home() {
 
   type DownloadFormat = "txt" | "md" | "pdf";
 
-  const downloadNotes = async (format: DownloadFormat) => {
+  const downloadNotes = async (format: DownloadFormat): Promise<void> => {
     if (!generatedNotes) return;
 
     if (format === "pdf") {
@@ -432,64 +430,29 @@ export default function Home() {
                 <h3 className="text-lg font-semibold text-white">
                   Generated Video Notes
                 </h3>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditMode(!isEditMode)}
-                    className="rounded-lg"
-                  >
-                    {isEditMode ? (
-                      <>
-                        <Eye className="w-4 h-4 mr-1" />
-                        Preview
-                      </>
-                    ) : (
-                      <>
-                        <Pencil className="w-4 h-4 mr-1" />
-                        Edit
-                      </>
-                    )}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger>
-                      <Button variant="outline" className="rounded-lg">
-                        Download
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => void downloadNotes("txt")}
-                      >
-                        Plain Text (.txt)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void downloadNotes("md")}
-                      >
-                        Markdown (.md)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => void downloadNotes("pdf")}
-                      >
-                        PDF (.pdf)
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger>
+                    <Button variant="outline" className="rounded-lg">
+                      Download
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => downloadNotes("txt")}>
+                      Plain Text (.txt)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => downloadNotes("md")}>
+                      Markdown (.md)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => downloadNotes("pdf")}>
+                      PDF (.pdf)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
-              {isEditMode ? (
-                <Textarea
-                  value={generatedNotes}
-                  onChange={(e) => setGeneratedNotes(e.target.value)}
-                  className="min-h-[300px] font-mono text-sm resize-none"
-                  placeholder="Your generated notes will appear here..."
-                />
-              ) : (
-                <div className="min-h-[300px] bg-white/5 rounded-lg p-4 overflow-y-auto">
-                  <MarkdownRenderer content={generatedNotes} />
-                </div>
-              )}
+              <div className="min-h-[300px] bg-white/5 rounded-lg p-4 overflow-y-auto">
+                <MarkdownRenderer content={generatedNotes} />
+              </div>
 
               {generatedNotes.length > 0 && (
                 <div className="mt-8 border-t border-white/10 pt-6">
