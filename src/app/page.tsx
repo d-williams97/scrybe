@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
+import YouTube, { YouTubeEvent } from "react-youtube";
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -28,6 +29,8 @@ export default function Home() {
   const [currentQuery, setCurrentQuery] = useState<string>("");
   const [videoId, setVideoId] = useState<string>("");
   const notesSectionRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const playerRef = useRef<any>(null);
 
   useEffect(() => {
     if (generatedNotes.length > 0 && notesSectionRef.current) {
@@ -110,6 +113,25 @@ export default function Home() {
     a.download = `scrybe-notes.${extension}`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  // Callback to save player instance
+  const onPlayerReady = (event: YouTubeEvent) => {
+    playerRef.current = event.target;
+  };
+
+  // Function to jump to time
+  const handleTimestampClick = (seconds: number) => {
+    if (playerRef.current) {
+      playerRef.current.seekTo(seconds, true);
+      playerRef.current.playVideo(); // Optional: ensure it plays
+
+      // Scroll to player smoothly
+      notesSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
   };
 
   const handleSummarise = async () => {
@@ -416,12 +438,16 @@ export default function Home() {
               {videoId && (
                 <div className="mb-4 overflow-hidden rounded-xl border border-white/10 bg-black">
                   <div className="relative w-full pb-[56.25%]">
-                    <iframe
-                      src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`}
-                      title="YouTube video preview"
+                    <YouTube
+                      videoId={videoId}
+                      onReady={onPlayerReady}
+                      opts={{
+                        width: "100%",
+                        height: "100%",
+                        playerVars: { autoplay: 0, rel: 0 },
+                      }}
                       className="absolute inset-0 h-full w-full"
-                      allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+                      iframeClassName="w-full h-full" // Important for responsive sizing
                     />
                   </div>
                 </div>
@@ -451,7 +477,10 @@ export default function Home() {
               </div>
 
               <div className="min-h-[300px] bg-white/5 rounded-lg p-4 overflow-y-auto">
-                <MarkdownRenderer content={generatedNotes} />
+                <MarkdownRenderer
+                  content={generatedNotes}
+                  onTimestampClick={handleTimestampClick}
+                />
               </div>
 
               {generatedNotes.length > 0 && (
@@ -474,7 +503,10 @@ export default function Home() {
                           <div className="flex justify-start">
                             <div className="bg-white/5 text-gray-200 px-4 py-2 rounded-2xl rounded-tl-sm max-w-[90%] border border-white/10">
                               {query.answer ? (
-                                <MarkdownRenderer content={query.answer} />
+                                <MarkdownRenderer
+                                  content={query.answer}
+                                  onTimestampClick={handleTimestampClick}
+                                />
                               ) : (
                                 <span className="animate-pulse bg-gradient-to-r from-[#ff006e] via-[#8b5cf6] to-[#06ffa5] bg-clip-text text-transparent">
                                   Thinking...

@@ -365,13 +365,13 @@ export async function POST(req: NextRequest) {
           .replace(/\n/g, " ")
           .replace(/\s+/g, " ")
           .trim();
-        // calculate minuets and seconds
+        // calculate minutes and seconds
         if (metadata?.offset) {
           const minutes = Math.floor(metadata.offset / 60);
           const seconds = Math.floor(metadata.offset % 60);
-          const timestamp = `[${String(minutes).padStart(2, "0")}:${String(
+          const timestamp = `(${String(minutes).padStart(2, "0")}:${String(
             seconds
-          ).padStart(2, "0")}]`;
+          ).padStart(2, "0")})`;
           return `${text} ${timestamp}`;
         } else {
           return text;

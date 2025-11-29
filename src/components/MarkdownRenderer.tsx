@@ -6,12 +6,23 @@ import remarkGfm from "remark-gfm";
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  onTimestampClick?: (seconds: number) => void;
 }
 
 export function MarkdownRenderer({
   content,
   className = "",
+  onTimestampClick,
 }: MarkdownRendererProps) {
+  // Pre-process content to turn (mm:ss) timestamps into clickable links
+  const processedContent = content.replace(
+    /\((\d{1,2}):(\d{2})\)/g,
+    (match, minutes, seconds) => {
+      const totalSeconds = parseInt(minutes) * 60 + parseInt(seconds);
+      return `[(${minutes}:${seconds})](<#timestamp-${totalSeconds}>)`;
+    }
+  );
+
   return (
     <div
       className={`prose prose-invert prose-sm max-w-none 
@@ -30,7 +41,43 @@ export function MarkdownRenderer({
         prose-a:text-primary prose-a:hover:underline
         ${className}`}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children, ...props }) => {
+            // Check if it's our custom timestamp link
+            if (href?.startsWith("#timestamp-") && onTimestampClick) {
+              const seconds = parseInt(href.split("-")[1]);
+              return (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onTimestampClick(seconds);
+                  }}
+                  className="text-blue-500 hover:text-blue-400 font-mono font-medium hover:underline cursor-pointer bg-transparent border-none p-0 inline"
+                  title={`Jump to ${children}`}
+                >
+                  {children}
+                </button>
+              );
+            }
+            // Default link behavior
+            return (
+              <a
+                href={href}
+                className="text-primary hover:underline"
+                target="_blank"
+                rel="noopener noreferrer"
+                {...props}
+              >
+                {children}
+              </a>
+            );
+          },
+        }}
+      >
+        {processedContent}
+      </ReactMarkdown>
     </div>
   );
 }
