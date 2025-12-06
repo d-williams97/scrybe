@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { OpenAI } from "openai";
+// import { OpenAI } from "openai";
 // import { jobManager } from "@/lib/jobManager";
 import type { CreateYoutubeJobRequest } from "@/app/types";
 import ytdl from "ytdl-core";
@@ -78,7 +78,7 @@ ${text}
         { status: 404 }
       ); // resource not found
 
-    console.log("transcriptRes", transcriptRes);
+    // console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
     const deepDecode = (s: string) => {
       let prev = s ?? "";
@@ -116,7 +116,7 @@ ${text}
         segmentRanges.push({
           startChar,
           endChar,
-          offset: segment.offset,
+          offset: segment.offset, // when the segment starts in the video
           endTime: segment.offset + segment.duration,
         });
 
@@ -128,24 +128,28 @@ ${text}
 
     const splitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000, // The maximum size of a chunk, where size is determined by the length_function
-      chunkOverlap: 120, // Target overlap between chunks. Overlapping chunks helps to mitigate loss of information when context is divided between chunks.
+      chunkOverlap: 200, // Target overlap between chunks. Overlapping chunks helps to mitigate loss of information when context is divided between chunks.
       // length_function: "words", // The function to use to determine the length of a chunk.
       // is_separator_regex: Whether the separator list (defaulting to ["\n\n", "\n", " ", ""]) should be interpreted as regex.
     });
 
     // creating langchain document objects
     const chunks = await splitter.createDocuments([fullText]);
-    // Add custom metadata and IDs to each chunk
+
+    // add metadata to the chunks
+    let searchStartIndex = 0;
     const chunksWithMetadata = chunks.map((chunk, index) => {
       // Find timestamp range for this chunk (using the mapping logic from earlier)
 
       // find the start and end indexes of the chunk in the full text
-      const chunkStart = fullText.indexOf(chunk.pageContent);
+      const chunkStart = fullText.indexOf(chunk.pageContent, searchStartIndex);
       const chunkEnd = chunkStart + chunk.pageContent.length;
+
+      searchStartIndex = Math.max(searchStartIndex, chunkEnd - 100); // Update search start for next chunk (account for overlap),  Move forward but allow some backtracking for overlap
 
       // find the overlapping segments in the segment ranges
       const overlappingSegments = segmentRanges.filter(
-        (range) => chunkStart < range.endChar && chunkEnd > range.startChar
+        (range) => chunkEnd > range.startChar && chunkStart < range.endChar
       );
 
       // find the minimum offset and maximum end time of the overlapping segments
@@ -157,6 +161,16 @@ ${text}
         overlappingSegments.length > 0
           ? Math.max(...overlappingSegments.map((s) => s.endTime))
           : 0;
+
+      if (index === 20) {
+        console.log("chunks length: ", chunks.length);
+        console.log("chunk text:  ", chunk.pageContent);
+        console.log("chunk start", chunkStart);
+        console.log("chunk end", chunkEnd);
+        // console.log("overlappingSegments", overlappingSegments);
+        console.log("minOffset", minOffset);
+        console.log("maxEndTime", maxEndTime);
+      }
 
       return {
         ...chunk, // Keep original pageContent and metadata.loc
@@ -190,7 +204,7 @@ ${text}
     // Embed all chunks
     const chunkTexts = chunksWithMetadata.map((chunk) => chunk.pageContent);
     const chunkEmbeddings = await embeddingsModel.embedDocuments(chunkTexts);
-    console.log("chunkEmbeddings", chunkEmbeddings);
+    // console.log("chunkEmbeddings", chunkEmbeddings);
 
     // Prepare data for Pinecone upsert
     const vectorsToUpsert = chunksWithMetadata.map((chunk, index) => ({
@@ -210,11 +224,10 @@ ${text}
     const namespace = `youtube-${videoInfo.videoDetails.videoId}`;
 
     // Pinecone upsert can handle batches, but for large batches, chunk them
-    console.log("vectorsToUpsert length", vectorsToUpsert.length);
+    // console.log("vectorsToUpsert length", vectorsToUpsert.length);
     const batchSize = 100; // max batch size for Pinecone upsert is 1000 and must be < 2 mb
     for (let i = 0; i < vectorsToUpsert.length; i += batchSize) {
       const batch = vectorsToUpsert.slice(i, i + batchSize);
-      console.log("batch", batch);
       await index.namespace(namespace).upsert(batch);
     }
 
@@ -303,9 +316,7 @@ ${text}
         // controller manages the stream
         try {
           for await (const chunk of stream) {
-            console.log("chunk", chunk);
             const content = chunk.content;
-            console.log("content", content);
             if (content) {
               controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
             }

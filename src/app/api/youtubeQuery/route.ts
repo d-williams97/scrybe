@@ -411,7 +411,7 @@ ${context}
 User Question: 
 ${query}
 
-Provide a clear, detailed answer based strictly on the context above. Reference timestamps when relevant.`;
+Provide a clear, detailed answer based strictly on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges.`;
 
     const insufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
@@ -426,7 +426,7 @@ ${context}
 User Question: 
 ${query}
 
-Provide a clear, detailed answer based on the context above. Reference timestamps when relevant.`;
+Provide a clear, detailed answer based on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges.`;
     // INSUFFICIENT: poor quantitative metrics
     console.log("chunkCount", chunkCount);
     console.log("totalWords", totalWords);

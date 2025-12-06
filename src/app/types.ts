@@ -97,3 +97,9 @@ export interface QueryResponse {
     error?: string;
   };
 }
+
+export interface MarkdownRendererProps {
+  content: string;
+  className?: string;
+  onTimestampClick?: (seconds: number) => void;
+}

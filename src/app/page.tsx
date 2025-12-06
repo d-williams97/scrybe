@@ -31,6 +31,7 @@ export default function Home() {
   const notesSectionRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const playerRef = useRef<any>(null);
+  const videoPlayerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (generatedNotes.length > 0 && notesSectionRef.current) {
@@ -127,14 +128,17 @@ export default function Home() {
       playerRef.current.playVideo(); // Optional: ensure it plays
 
       // Scroll to player smoothly
-      notesSectionRef.current?.scrollIntoView({
+      videoPlayerRef.current?.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "center",
       });
     }
   };
 
   const handleSummarise = async () => {
+    setGeneratedNotes("");
+    setVideoId("");
+    setQueries([]);
     if (!youtubeUrl.trim()) return;
 
     setIsLoading(true);
@@ -434,26 +438,8 @@ export default function Home() {
 
           {generatedNotes.length > 0 && (
             <div className="glow-card-intense p-6" ref={notesSectionRef}>
-              {/* Embedded YouTube video preview – only shown once a video has been summarised */}
-              {videoId && (
-                <div className="mb-4 overflow-hidden rounded-xl border border-white/10 bg-black">
-                  <div className="relative w-full pb-[56.25%]">
-                    <YouTube
-                      videoId={videoId}
-                      onReady={onPlayerReady}
-                      opts={{
-                        width: "100%",
-                        height: "100%",
-                        playerVars: { autoplay: 0, rel: 0 },
-                      }}
-                      className="absolute inset-0 h-full w-full"
-                      iframeClassName="w-full h-full" // Important for responsive sizing
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-white">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="text-xl font-semibold text-white">
                   Generated Video Notes
                 </h3>
                 <DropdownMenu>
@@ -482,6 +468,28 @@ export default function Home() {
                   onTimestampClick={handleTimestampClick}
                 />
               </div>
+
+              {/* Embedded YouTube video preview – only shown once a video has been summarised */}
+              {videoId && (
+                <div
+                  ref={videoPlayerRef}
+                  className="mb-4 overflow-hidden rounded-xl border border-white/10 bg-black"
+                >
+                  <div className="relative w-full pb-[56.25%]">
+                    <YouTube
+                      videoId={videoId}
+                      onReady={onPlayerReady}
+                      opts={{
+                        width: "100%",
+                        height: "100%",
+                        playerVars: { autoplay: 0, rel: 0 },
+                      }}
+                      className="absolute inset-0 h-full w-full"
+                      iframeClassName="w-full h-full" // Important for responsive sizing
+                    />
+                  </div>
+                </div>
+              )}
 
               {generatedNotes.length > 0 && (
                 <div className="mt-8 border-t border-white/10 pt-6">
