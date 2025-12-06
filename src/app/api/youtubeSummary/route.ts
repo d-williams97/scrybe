@@ -110,8 +110,10 @@ ${text}
 
     const fullText = decodedTranscript
       .map((segment) => {
+        const cleanText = segment.text.trim().replace(/\s+/g, " ");
+
         const startChar = currentChar;
-        const endChar = currentChar + segment.text.length;
+        const endChar = currentChar + cleanText.length;
 
         segmentRanges.push({
           startChar,
@@ -121,7 +123,8 @@ ${text}
         });
 
         currentChar = endChar + 1; // +1 for space between segments
-        return segment.text.trim();
+
+        return cleanText;
       })
       .filter(Boolean)
       .join(" ");
@@ -135,17 +138,14 @@ ${text}
 
     // creating langchain document objects
     const chunks = await splitter.createDocuments([fullText]);
-
     // add metadata to the chunks
-    let searchStartIndex = 0;
+
     const chunksWithMetadata = chunks.map((chunk, index) => {
       // Find timestamp range for this chunk (using the mapping logic from earlier)
 
       // find the start and end indexes of the chunk in the full text
-      const chunkStart = fullText.indexOf(chunk.pageContent, searchStartIndex);
+      const chunkStart = fullText.indexOf(chunk.pageContent);
       const chunkEnd = chunkStart + chunk.pageContent.length;
-
-      searchStartIndex = Math.max(searchStartIndex, chunkEnd - 100); // Update search start for next chunk (account for overlap),  Move forward but allow some backtracking for overlap
 
       // find the overlapping segments in the segment ranges
       const overlappingSegments = segmentRanges.filter(
@@ -162,20 +162,10 @@ ${text}
           ? Math.max(...overlappingSegments.map((s) => s.endTime))
           : 0;
 
-      if (index === 20) {
-        console.log("chunks length: ", chunks.length);
-        console.log("chunk text:  ", chunk.pageContent);
-        console.log("chunk start", chunkStart);
-        console.log("chunk end", chunkEnd);
-        // console.log("overlappingSegments", overlappingSegments);
-        console.log("minOffset", minOffset);
-        console.log("maxEndTime", maxEndTime);
-      }
-
       return {
         ...chunk, // Keep original pageContent and metadata.loc
         metadata: {
-          ...chunk.metadata, // Keep existing loc info
+          // Keep existing loc info
           chunkIndex: index,
           offset: minOffset,
           duration: maxEndTime - minOffset,
@@ -185,7 +175,6 @@ ${text}
         id: `${videoInfo.videoDetails.videoId}-chunk-${index}`, // Add unique ID for Pinecone
       };
     });
-    console.log("chunksWithMetadata", chunksWithMetadata);
 
     // embed the chunks with metadata
 
@@ -204,21 +193,24 @@ ${text}
     // Embed all chunks
     const chunkTexts = chunksWithMetadata.map((chunk) => chunk.pageContent);
     const chunkEmbeddings = await embeddingsModel.embedDocuments(chunkTexts);
-    // console.log("chunkEmbeddings", chunkEmbeddings);
 
     // Prepare data for Pinecone upsert
-    const vectorsToUpsert = chunksWithMetadata.map((chunk, index) => ({
-      id: chunk.id,
-      values: chunkEmbeddings[index],
-      metadata: {
-        text: chunk.pageContent,
-        chunkIndex: chunk.metadata.chunkIndex,
-        offset: chunk.metadata.offset,
-        duration: chunk.metadata.duration,
-        videoId: chunk.metadata.videoId,
-        videoTitle: chunk.metadata.videoTitle,
-      },
-    }));
+    const vectorsToUpsert = chunksWithMetadata.map((chunk, index) => {
+      if (index < 8) {
+      }
+      return {
+        id: chunk.id,
+        values: chunkEmbeddings[index],
+        metadata: {
+          text: chunk.pageContent,
+          chunkIndex: chunk.metadata.chunkIndex,
+          offset: chunk.metadata.offset,
+          duration: chunk.metadata.duration,
+          videoId: chunk.metadata.videoId,
+          videoTitle: chunk.metadata.videoTitle,
+        },
+      };
+    });
 
     // Upsert vectors into Pinecone with namespace per video
     const namespace = `youtube-${videoInfo.videoDetails.videoId}`;
@@ -266,6 +258,7 @@ ${text}
     const sortedRelevantChunks = relevantChunks.sort(
       (a, b) => a.metadata.offset - b.metadata.offset
     );
+    console.log("sortedRelevantChunks", sortedRelevantChunks);
 
     const formattedRelevantChunks = sortedRelevantChunks
       .map((chunk) => {

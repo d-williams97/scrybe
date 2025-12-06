@@ -11,7 +11,7 @@ export function MarkdownRenderer({
 }: MarkdownRendererProps) {
   // Turn (mm:ss) timestamps into clickable links
   const processedContent = content.replace(
-    /\((\d{1,2}):(\d{2})\)/g,
+    /\((\d+):(\d{2})\)/g,
     (match, minutes, seconds) => {
       const totalSeconds = parseInt(minutes) * 60 + parseInt(seconds);
       return `[(${minutes}:${seconds})](<#timestamp-${totalSeconds}>)`;
