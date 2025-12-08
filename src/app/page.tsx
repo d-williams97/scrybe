@@ -211,13 +211,18 @@ export default function Home() {
     await queryVideo(sanitisedQuery, videoId, queryId);
   };
 
+  const [isQuerying, setIsQuerying] = useState(false);
   const queryVideo = async (
     query: string,
     videoId: string,
     queryId: string
   ) => {
+    setIsQuerying(true);
     try {
-      if (query.length < 1 || !videoId) return;
+      if (query.length < 1 || !videoId) {
+        setIsQuerying(false);
+        return;
+      }
 
       const res = await fetch("/api/youtubeQuery", {
         method: "POST",
@@ -226,6 +231,7 @@ export default function Home() {
       });
 
       if (!res.ok) {
+        setIsQuerying(false);
         // Try to parse error as JSON
         try {
           const errorData = await res.json();
@@ -239,6 +245,7 @@ export default function Home() {
             )
           );
         } catch {
+          setIsQuerying(false);
           setQueries((prev) =>
             prev.map((q) =>
               q.queryId === queryId
@@ -266,9 +273,11 @@ export default function Home() {
             q.queryId === queryId ? { ...q, answer: answer } : q
           )
         );
+        setIsQuerying(false);
       } else {
         // Handle streaming response (success cases)
         if (!res.body) {
+          setIsQuerying(false);
           throw new Error("No response body");
         }
 
@@ -289,6 +298,7 @@ export default function Home() {
                 )
               );
             }
+            setIsQuerying(false);
             break;
           }
           const chunk = decoder.decode(value, { stream: true });
@@ -302,6 +312,7 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error querying video", error);
+      setIsQuerying(false);
       setQueries((prev) =>
         prev.map((q) =>
           q.queryId === queryId
@@ -429,10 +440,14 @@ export default function Home() {
             <Button
               className="px-8 py-3 rounded-lg"
               onClick={handleSummarise}
-              disabled={isLoading || !youtubeUrl.trim()}
+              disabled={isLoading || !youtubeUrl.trim() || isQuerying}
             >
               <Play className="w-4 h-4 mr-2" />
-              {isLoading ? "Generating..." : "Summarise"}
+              {isLoading
+                ? "Summarising..."
+                : isQuerying
+                ? "Thinking"
+                : "Summarise"}
             </Button>
           </div>
 
@@ -539,13 +554,14 @@ export default function Home() {
                           name="query"
                           onChange={(e) => setCurrentQuery(e.target.value)}
                           className="w-full h-12 pl-4 pr-12 text-base border border-white/20 rounded-xl bg-white/5 text-white placeholder-gray-400 focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all"
+                          disabled={isQuerying}
                         />
                         <Button
                           type="submit"
                           size="icon"
                           variant="ghost"
                           className="absolute right-1 top-1 bottom-1 text-primary hover:text-primary/80 hover:bg-transparent"
-                          disabled={!currentQuery.trim()}
+                          disabled={!currentQuery.trim() || isQuerying}
                         >
                           <Play className="w-5 h-5" />
                         </Button>

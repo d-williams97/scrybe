@@ -262,8 +262,6 @@ export async function POST(req: NextRequest) {
     });
     const namespace = `youtube-${videoId}`;
 
-    // k value is determined by the query length and the complexity of the query.
-    // k value is used to retrieve the top k chunks from the vector store.
     const kValue = getKValue(query);
 
     const queryEmbedding = await embeddingsModel.embedQuery(query);
@@ -271,7 +269,7 @@ export async function POST(req: NextRequest) {
     // Query Pinecone directly to get scores
     const queryResponse = await index.namespace(namespace).query({
       vector: queryEmbedding,
-      topK: kValue,
+      topK: kValue, // k value is determined by the query length and the complexity of the query. k value is used to retrieve the number of top k chunks from the vector store.
       includeMetadata: true, // This includes your chunk metadata
     });
 
@@ -490,9 +488,7 @@ Provide a clear, detailed answer based on the context above. When referencing ti
           // controller manages the stream
           try {
             for await (const chunk of stream) {
-              console.log("chunk", chunk);
               const content = chunk.content;
-              console.log("content", content);
               if (content) {
                 controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
               }
@@ -531,9 +527,7 @@ Provide a clear, detailed answer based on the context above. When referencing ti
           async start(controller) {
             try {
               for await (const chunk of stream) {
-                console.log("chunk", chunk);
                 const content = chunk.content;
-                console.log("content", content);
                 if (content) {
                   controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
                 }
@@ -558,9 +552,7 @@ Provide a clear, detailed answer based on the context above. When referencing ti
           async start(controller) {
             try {
               for await (const chunk of stream) {
-                console.log("chunk", chunk);
                 const content = chunk.content;
-                console.log("content", content);
                 if (content) {
                   controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
                 }
