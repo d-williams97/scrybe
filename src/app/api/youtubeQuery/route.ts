@@ -7,6 +7,9 @@ import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 export const runtime = "nodejs";
 
 function getKValue(query: string): number {
+  if (typeof query !== "string") {
+    return 0;
+  }
   const lowerQuery = query.toLowerCase();
 
   // explanation, comparison, comprehensive, summary/overview, how, why words are indicators of high complexity.
@@ -262,7 +265,16 @@ export async function POST(req: NextRequest) {
     });
     const namespace = `youtube-${videoId}`;
 
-    const kValue = getKValue(query);
+    const kValue = getKValue(query.toString());
+    if (kValue === 0) {
+      return NextResponse.json<QueryResponse>({
+        answer: "Invalid query",
+        metadata: {
+          contextQuality: "insufficient",
+          strategy: "error",
+        },
+      });
+    }
 
     const queryEmbedding = await embeddingsModel.embedQuery(query);
 
