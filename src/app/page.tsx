@@ -354,7 +354,7 @@ export default function Home() {
           <div className="p-8 bg-background border border-white/10 rounded-lg">
             <div className="glow-input">
               <Input
-                placeholder="https://www.youtube.com/watch?v=..."
+                placeholder="Paste a youtube link here"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 className="w-full text-center py-6 text-lg border-2 rounded-lg bg-input-background text-white placeholder-gray-400"
