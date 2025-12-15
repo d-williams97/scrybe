@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { TextDecoder } from "util";
 
 // Mock nanoid
 jest.mock("nanoid", () => ({
@@ -8,7 +9,7 @@ jest.mock("nanoid", () => ({
 
 // Mock MarkdownRenderer to avoid react-markdown issues
 jest.mock("@/components/MarkdownRenderer", () => ({
-  MarkdownRenderer: ({ content }: any) => <div>{content}</div>,
+  MarkdownRenderer: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
 import Home from "@/app/page";
@@ -85,5 +86,73 @@ describe("timestamp checkbox", () => {
     expect(checkbox).not.toBeChecked();
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
+  });
+});
+
+describe("summarise button", () => {
+  it("should be disabled when the input is empty and enabled when the input is not empty", () => {
+    render(<Home />);
+    const button = screen.getByRole("button", { name: "Summarise" });
+    const input = screen.getByPlaceholderText("Paste a youtube link here");
+    expect(button).toBeDisabled();
+    fireEvent.change(input, {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    expect(button).not.toBeDisabled();
+    fireEvent.change(input, {
+      target: { value: "" },
+    });
+    expect(button).toBeDisabled();
+  });
+});
+
+describe("handleSummarise function", () => {
+  it("shows loading, calls the API, and renders returned notes", async () => {
+    // JSDOM doesn't always provide TextDecoder; Home() uses it for streaming.
+    // @ts-expect-error - allow setting global for test environment
+    global.TextDecoder = TextDecoder;
+
+    const textChunk = "Generated notes chunk";
+    const encoded = Buffer.from(textChunk, "utf-8");
+
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: jest
+            .fn()
+            .mockResolvedValueOnce({ done: false, value: encoded })
+            .mockResolvedValueOnce({ done: true, value: undefined }),
+        }),
+      },
+    });
+
+    global.fetch = mockFetch;
+
+    render(<Home />);
+
+    const input = screen.getByPlaceholderText("Paste a youtube link here");
+    const button = screen.getByRole("button", { name: "Summarise" });
+
+    fireEvent.change(input, {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    fireEvent.click(button);
+
+    // Loading state
+    expect(button).toHaveTextContent("Summarising...");
+
+    // Fetch called with expected endpoint
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/youtubeSummary",
+        expect.objectContaining({ method: "POST" })
+      )
+    );
+
+    // Notes rendered via MarkdownRenderer mock
+    await waitFor(() =>
+      expect(screen.getByText(textChunk)).toBeInTheDocument()
+    );
   });
 });
