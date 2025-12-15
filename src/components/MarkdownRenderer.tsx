@@ -9,11 +9,19 @@ export function MarkdownRenderer({
   className = "",
   onTimestampClick,
 }: MarkdownRendererProps) {
-  // Turn (mm:ss) timestamps into clickable links
-  const processedContent = content.replace(
+  // Normalise timestamps then turn them into clickable links.
+  // We support:
+  // - (mm:ss)
+  // - ([mm:ss]) (some styles produce this)
+  // - [mm:ss] (fallback)
+  const normalised = content
+    .replace(/\(\[(\d+):(\d{2})\]\)/g, "($1:$2)")
+    .replace(/\[(\d+):(\d{2})\]/g, "($1:$2)");
+
+  const processedContent = normalised.replace(
     /\((\d+):(\d{2})\)/g,
-    (match, minutes, seconds) => {
-      const totalSeconds = parseInt(minutes) * 60 + parseInt(seconds);
+    (_match, minutes, seconds) => {
+      const totalSeconds = parseInt(minutes, 10) * 60 + parseInt(seconds, 10);
       return `[(${minutes}:${seconds})](<#timestamp-${totalSeconds}>)`;
     }
   );
