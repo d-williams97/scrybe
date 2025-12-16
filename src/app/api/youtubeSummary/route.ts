@@ -27,23 +27,45 @@ export async function POST(req: NextRequest) {
     videoTitle: string
   ) {
     const depthText = depth === "brief" ? "120–180 words" : "250–400 words";
+
+    // Style-specific instructions
+    const styleInstructions = {
+      "bullet-points":
+        "Use bullet points (-) for individual points and facts, but ALWAYS use proper markdown headings (### for subheadings) to organize sections. Never use bullet points for section titles.",
+      academic:
+        "Use formal academic language with proper paragraph structure and citations where relevant.",
+      casual:
+        "Use conversational, easy-to-understand language while maintaining clarity.",
+      "revision-notes":
+        "Format as concise revision notes with key concepts highlighted.",
+      paragraph:
+        "Write in flowing paragraph format with clear topic sentences.",
+    };
+
     return `
 You are an expert note taker. Create a final summary from the below notes extracted from the transcript of a Youtube video titled "${videoTitle}". 
 
 **Output your response in well-formatted Markdown.**
 
+CRITICAL FORMATTING RULES:
+- ALWAYS use ## for the main title
+- ALWAYS use ### for section subheadings (e.g., "Key Points", "Overview", "Historical Context", etc.)
+- Never use bullet points (-) for headings or subheadings
+- Only use bullet points (-) for actual content items under subheadings
+
+Additional guidelines:
 - Use British English. 
 - No invented facts.
-- Ignore any notes that do not relevant to the overarching theme of the video i.e jokes, etc.
+- Ignore any notes that are not relevant to the overarching theme of the video (e.g., jokes, off-topic remarks).
 - Target length: ${depthText}.
-- Style: ${style}.
+- Style: ${style}. ${styleInstructions[style] || ""}
 - ${
       includeTimestamps
         ? "If a point maps to a provided timestamp, include it exactly as (mm:ss). Do NOT use square brackets. Do NOT invent times."
         : "Do not include timestamps."
     }
 - No meta text; output only the formatted summary.
-- Use headings (##), bullet points, **bold** for key terms, and other Markdown formatting as appropriate.
+- Use **bold** for key terms and concepts.
 
 ${videoTitle && `Title: ${videoTitle}.`}
 

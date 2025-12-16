@@ -72,50 +72,208 @@ export default function Home() {
     if (format === "md") {
       // For markdown: only remove timestamps
       content = removeTimestamps(content);
-    } else {
-      // For txt and pdf: remove timestamps and markdown formatting
+    } else if (format === "txt") {
+      // For txt: remove timestamps and markdown formatting
       content = removeTimestamps(content);
       content = stripMarkdownFormatting(content);
     }
 
     if (format === "pdf") {
-      // Create a simple PDF with the notes text
+      // Create a formatted PDF with proper typography and layout
       const pdfDoc = await PDFDocument.create();
-      const page = pdfDoc.addPage();
-      const { width, height } = page.getSize();
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const fontSize = 12;
+      let currentPage = pdfDoc.addPage();
+      const { width, height } = currentPage.getSize();
+
+      // Fonts
+      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+      // Layout settings
       const margin = 50;
-      const lineHeight = fontSize + 4;
       const maxWidth = width - margin * 2;
+      let y = height - 60; // Start position
 
-      // Basic word-wrap
-      const words = content.split(/\s+/);
-      const lines: string[] = [];
-      let currentLine = "";
+      // Font sizes
+      const titleSize = 18;
+      const headingSize = 14;
+      const bodySize = 11;
 
-      words.forEach((word) => {
-        const testLine = currentLine ? `${currentLine} ${word}` : word;
-        const textWidth = font.widthOfTextAtSize(testLine, fontSize);
-        if (textWidth > maxWidth && currentLine) {
-          lines.push(currentLine);
-          currentLine = word;
-        } else {
-          currentLine = testLine;
-        }
-      });
-      if (currentLine) lines.push(currentLine);
+      // Line heights
+      const titleLineHeight = titleSize + 8;
+      const headingLineHeight = headingSize + 6;
+      const bodyLineHeight = bodySize + 5;
 
-      let y = height - margin;
+      // For PDF: parse the original markdown content (with timestamps removed) to identify structure
+      const pdfContent = removeTimestamps(generatedNotes);
+      const lines = pdfContent.split("\n");
+      const blocks: Array<{
+        type: "title" | "heading" | "bullet" | "paragraph" | "empty";
+        content: string;
+      }> = [];
+
       for (const line of lines) {
-        if (y < margin) break; // simple single-page guard
-        page.drawText(line, {
-          x: margin,
-          y,
-          size: fontSize,
-          font,
+        const trimmed = line.trim();
+        if (!trimmed) {
+          blocks.push({ type: "empty", content: "" });
+        } else if (trimmed.startsWith("## ")) {
+          blocks.push({ type: "title", content: trimmed.substring(3) });
+        } else if (trimmed.startsWith("### ")) {
+          blocks.push({ type: "heading", content: trimmed.substring(4) });
+        } else if (trimmed.startsWith("- ")) {
+          blocks.push({ type: "bullet", content: trimmed.substring(2) });
+        } else {
+          blocks.push({ type: "paragraph", content: trimmed });
+        }
+      }
+
+      // Helper function to wrap text
+      const wrapText = (
+        text: string,
+        font: typeof fontRegular,
+        fontSize: number,
+        maxWidth: number
+      ): string[] => {
+        const words = text.split(" ");
+        const wrappedLines: string[] = [];
+        let currentLine = "";
+
+        words.forEach((word) => {
+          const testLine = currentLine ? `${currentLine} ${word}` : word;
+          const textWidth = font.widthOfTextAtSize(testLine, fontSize);
+          if (textWidth > maxWidth && currentLine) {
+            wrappedLines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine = testLine;
+          }
         });
-        y -= lineHeight;
+        if (currentLine) wrappedLines.push(currentLine);
+        return wrappedLines;
+      };
+
+      // Helper function to check if new page is needed
+      const checkAndAddPage = (requiredSpace: number) => {
+        if (y - requiredSpace < margin) {
+          currentPage = pdfDoc.addPage();
+          y = height - 60;
+          return true;
+        }
+        return false;
+      };
+
+      // Render blocks
+      for (let i = 0; i < blocks.length; i++) {
+        const block = blocks[i];
+
+        if (block.type === "empty") {
+          y -= bodyLineHeight / 2; // Small spacing for empty lines
+          continue;
+        }
+
+        if (block.type === "title") {
+          checkAndAddPage(titleLineHeight * 2);
+          // Strip remaining markdown formatting (bold, italic) from content
+          const cleanContent = stripMarkdownFormatting(block.content);
+          const wrappedLines = wrapText(
+            cleanContent,
+            fontBold,
+            titleSize,
+            maxWidth
+          );
+
+          for (const line of wrappedLines) {
+            currentPage.drawText(line, {
+              x: margin,
+              y,
+              size: titleSize,
+              font: fontBold,
+            });
+            y -= titleLineHeight;
+          }
+          y -= 12; // Extra space after title
+        } else if (block.type === "heading") {
+          checkAndAddPage(headingLineHeight * 2);
+          y -= 8; // Space before heading
+          // Strip remaining markdown formatting (bold, italic) from content
+          const cleanContent = stripMarkdownFormatting(block.content);
+          const wrappedLines = wrapText(
+            cleanContent,
+            fontBold,
+            headingSize,
+            maxWidth
+          );
+
+          for (const line of wrappedLines) {
+            currentPage.drawText(line, {
+              x: margin,
+              y,
+              size: headingSize,
+              font: fontBold,
+            });
+            y -= headingLineHeight;
+          }
+          y -= 4; // Space after heading
+        } else if (block.type === "bullet") {
+          checkAndAddPage(bodyLineHeight * 2);
+          const bulletIndent = 15;
+          const textIndent = margin + bulletIndent;
+          const bulletMaxWidth = maxWidth - bulletIndent;
+
+          // Draw bullet point
+          currentPage.drawText("•", {
+            x: margin,
+            y,
+            size: bodySize,
+            font: fontRegular,
+          });
+
+          // Strip remaining markdown formatting from content
+          const cleanContent = stripMarkdownFormatting(block.content);
+          // Wrap and draw bullet text
+          const wrappedLines = wrapText(
+            cleanContent,
+            fontRegular,
+            bodySize,
+            bulletMaxWidth
+          );
+          for (const line of wrappedLines) {
+            checkAndAddPage(bodyLineHeight);
+            currentPage.drawText(line, {
+              x: textIndent,
+              y,
+              size: bodySize,
+              font: fontRegular,
+            });
+            y -= bodyLineHeight;
+          }
+          y -= 2; // Small space after bullet
+        } else if (block.type === "paragraph") {
+          checkAndAddPage(bodyLineHeight * 2);
+          // Strip remaining markdown formatting from content
+          const cleanContent = stripMarkdownFormatting(block.content);
+          const wrappedLines = wrapText(
+            cleanContent,
+            fontRegular,
+            bodySize,
+            maxWidth
+          );
+
+          for (const line of wrappedLines) {
+            checkAndAddPage(bodyLineHeight);
+            currentPage.drawText(line, {
+              x: margin,
+              y,
+              size: bodySize,
+              font: fontRegular,
+            });
+            y -= bodyLineHeight;
+          }
+
+          // Add spacing after paragraph if next block is not empty
+          if (i < blocks.length - 1 && blocks[i + 1].type !== "empty") {
+            y -= 4;
+          }
+        }
       }
 
       const pdfBytes = await pdfDoc.save();
