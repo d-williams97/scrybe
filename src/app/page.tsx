@@ -46,8 +46,37 @@ export default function Home() {
 
   type DownloadFormat = "txt" | "md" | "pdf";
 
+  // Helper function to remove timestamps (mm:ss) from text
+  const removeTimestamps = (text: string): string => {
+    return text.replace(/\s*\(\d{2}:\d{2}\)/g, "");
+  };
+
+  // Helper function to strip markdown formatting (remove # and * but keep - for bullets)
+  const stripMarkdownFormatting = (text: string): string => {
+    let result = text;
+    // Remove heading markers (##, ###, etc.) - replace with just the text
+    result = result.replace(/^#{1,6}\s+/gm, "");
+    // Remove bold (**text**)
+    result = result.replace(/\*\*(.+?)\*\*/g, "$1");
+    // Remove italic (*text* but not bullet points)
+    result = result.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, "$1");
+    return result;
+  };
+
   const downloadNotes = async (format: DownloadFormat): Promise<void> => {
     if (!generatedNotes) return;
+
+    // Process content based on format
+    let content = generatedNotes;
+
+    if (format === "md") {
+      // For markdown: only remove timestamps
+      content = removeTimestamps(content);
+    } else {
+      // For txt and pdf: remove timestamps and markdown formatting
+      content = removeTimestamps(content);
+      content = stripMarkdownFormatting(content);
+    }
 
     if (format === "pdf") {
       // Create a simple PDF with the notes text
@@ -61,7 +90,7 @@ export default function Home() {
       const maxWidth = width - margin * 2;
 
       // Basic word-wrap
-      const words = generatedNotes.split(/\s+/);
+      const words = content.split(/\s+/);
       const lines: string[] = [];
       let currentLine = "";
 
@@ -105,7 +134,7 @@ export default function Home() {
     // txt and md: same plain text content, different extension
     const extension = format === "md" ? "md" : "txt";
 
-    const blob = new Blob([generatedNotes], {
+    const blob = new Blob([content], {
       type: "text/plain;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
