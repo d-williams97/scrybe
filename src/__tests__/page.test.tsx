@@ -139,10 +139,8 @@ describe("handleSummarise function", () => {
     });
     fireEvent.click(button);
 
-    // Loading state
     expect(button).toHaveTextContent("Summarising...");
 
-    // Fetch called with expected endpoint
     await waitFor(() =>
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/youtubeSummary",
@@ -150,9 +148,106 @@ describe("handleSummarise function", () => {
       )
     );
 
-    // Notes rendered via MarkdownRenderer mock
     await waitFor(() =>
       expect(screen.getByText(textChunk)).toBeInTheDocument()
+    );
+
+    expect(
+      screen.getByText("Ask Scrybe a question about the video content.")
+    ).toBeInTheDocument();
+  });
+});
+
+describe("handleQuestionSubmit function", () => {
+  it("should submit a question and render the answer", async () => {
+    // JSDOM doesn't always provide TextDecoder; Home() uses it for streaming.
+    // @ts-expect-error - allow setting global for test environment
+    global.TextDecoder = TextDecoder;
+
+    // 1) First, run the summarise flow so generated notes + videoId exist
+    const notesChunk = "Some generated notes";
+    const videoIdChunk = "\n__VIDEO_ID__:video-123";
+
+    const summaryReaderRead = jest
+      .fn()
+      .mockResolvedValueOnce({
+        done: false,
+        value: Buffer.from(notesChunk, "utf-8"),
+      })
+      .mockResolvedValueOnce({
+        done: false,
+        value: Buffer.from(videoIdChunk, "utf-8"),
+      })
+      .mockResolvedValueOnce({ done: true, value: undefined });
+
+    const youtubeQueryAnswer = "The main topic of the video is...";
+    const queryReaderRead = jest
+      .fn()
+      .mockResolvedValueOnce({
+        done: false,
+        value: Buffer.from(youtubeQueryAnswer, "utf-8"),
+      })
+      .mockResolvedValueOnce({ done: true, value: undefined });
+
+    const mockFetch = jest.fn().mockImplementation((url: string) => {
+      if (url === "/api/youtubeSummary") {
+        return Promise.resolve({
+          ok: true,
+          body: {
+            getReader: () => ({ read: summaryReaderRead }),
+          },
+        });
+      }
+
+      if (url === "/api/youtubeQuery") {
+        return Promise.resolve({
+          ok: true,
+          headers: {
+            get: () => "text/plain",
+          },
+          body: {
+            getReader: () => ({ read: queryReaderRead }),
+          },
+        });
+      }
+
+      throw new Error(`Unexpected fetch url in test: ${String(url)}`);
+    });
+
+    global.fetch = mockFetch;
+
+    render(<Home />);
+
+    // 1)  paste youtube url and summarise
+    fireEvent.change(screen.getByPlaceholderText("Paste a youtube link here"), {
+      target: { value: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Summarise" }));
+
+    // Wait until the Q&A UI appears (only shown once notes exist)
+    const questionInput = await screen.findByPlaceholderText(
+      "Ask Scrybe a question about the video..."
+    );
+
+    // 2) Submit the question
+    fireEvent.change(questionInput, {
+      target: { value: "What is the main topic of the video?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit question" }));
+
+    // 3) will show loading state for the answer
+    expect(screen.getByText("Thinking...")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/youtubeQuery",
+        expect.objectContaining({ method: "POST" })
+      )
+    );
+
+    // 4) Answer rendered (via MarkdownRenderer mock)
+    await waitFor(() =>
+      expect(screen.getByText(youtubeQueryAnswer)).toBeInTheDocument()
     );
   });
 });

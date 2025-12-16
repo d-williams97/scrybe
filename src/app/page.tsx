@@ -354,6 +354,7 @@ export default function Home() {
           <div className="p-8 bg-background border border-white/10 rounded-lg">
             <div className="glow-input">
               <Input
+                aria-label="YouTube URL"
                 placeholder="Paste a youtube link here"
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
@@ -562,6 +563,7 @@ export default function Home() {
                           variant="ghost"
                           className="absolute right-1 top-1 bottom-1 text-primary hover:text-primary/80 hover:bg-transparent"
                           disabled={!currentQuery.trim() || isQuerying}
+                          aria-label="Submit question"
                         >
                           <Play className="w-5 h-5" />
                         </Button>
