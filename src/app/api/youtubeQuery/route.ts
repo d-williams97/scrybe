@@ -334,8 +334,10 @@ export async function POST(req: NextRequest) {
       scoreThreshold = 0.6; // Strict filter
     } else if (maxScore >= 0.5) {
       scoreThreshold = 0.4; // Moderate filter
-    } else {
+    } else if (maxScore >= 0.3) {
       scoreThreshold = 0.3; // Lenient filter
+    } else {
+      scoreThreshold = 0.2; // Very lenient filter
     }
     console.log("Using score threshold:", scoreThreshold);
 
@@ -413,7 +415,25 @@ export async function POST(req: NextRequest) {
 
 Use ONLY the following context from the video transcript to answer the user's question. Do not use external knowledge or hallucinate information.
 
-**Format your response in well-structured Markdown.** Use headings, bullet points, **bold** for emphasis, and code blocks where appropriate.
+**IMPORTANT: Match your response length and detail to the user's question:**
+
+1. **For brief questions** (e.g., "what is the main point" (singular), "summarise this in one sentence"):
+   - Provide a concise 1-3 sentence answer
+   - Do NOT use headings or multiple sections
+   - Write in plain paragraph format
+   - Use **bold** only for key terms if needed
+   - Keep it simple and direct
+
+2. **For specific questions** (e.g., "what did they say about X", "who mentioned Y"):
+   - Provide a focused answer on that specific topic
+   - Use minimal structure (one heading if helpful)
+   - Keep it concise but complete
+   - Use **bold** for emphasis
+
+3. **For comprehensive questions** (e.g., "what are the main points" (plural), "explain...", "break down..."):
+   - Provide a thorough, detailed response
+   - Use headings (##), bullet points (-), and **bold** for emphasis
+   - Create well-structured markdown with multiple sections
 
 Context from video:
 ${context}
@@ -421,14 +441,32 @@ ${context}
 User Question: 
 ${query}
 
-Provide a clear, detailed answer based strictly on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges.`;
+Provide a clear answer based strictly on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges. Use British English spelling.`;
 
     const insufficientContextQuery = `You are a helpful assistant answering questions about a YouTube video transcript.
 
 Answer the user's question using the video context below as your primary source of information. You can use external knowledge if the information from the video context is not sufficient to answer the question. 
 Clearly indicate in your response information that is from the video context and information that is from external knowledge.
 
-**Format your response in well-structured Markdown.** Use headings, bullet points, **bold** for emphasis, and code blocks where appropriate.
+**IMPORTANT: Match your response length and detail to the user's question:**
+
+1. **For brief questions** (e.g., "what is the main point" (singular), "summarise this in one sentence"):
+   - Provide a concise 1-3 sentence answer
+   - Do NOT use headings or multiple sections
+   - Write in plain paragraph format
+   - Use **bold** only for key terms if needed
+   - Keep it simple and direct
+
+2. **For specific questions** (e.g., "what did they say about X", "who mentioned Y"):
+   - Provide a focused answer on that specific topic
+   - Use minimal structure (one heading if helpful)
+   - Keep it concise but complete
+   - Use **bold** for emphasis
+
+3. **For comprehensive questions** (e.g., "what are the main points" (plural), "explain...", "break down...", "how..."):
+   - Provide a thorough, detailed response
+   - Use headings (##), bullet points (-), and **bold** for emphasis
+   - Create well-structured markdown with multiple sections
 
 Context from video:
 ${context}
@@ -436,7 +474,7 @@ ${context}
 User Question: 
 ${query}
 
-Provide a clear, detailed answer based on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges.`;
+Provide a clear answer based on the context above. When referencing timestamps, use only the single start timestamp in parentheses like (mm:ss), not ranges. Use British English spelling.`;
     // INSUFFICIENT: poor quantitative metrics
     console.log("chunkCount", chunkCount);
     console.log("totalWords", totalWords);
@@ -445,16 +483,14 @@ Provide a clear, detailed answer based on the context above. When referencing ti
     if (
       chunkCount < 2 ||
       totalWords < 100 ||
-      averageScore < 0.35 ||
-      keywordCoverageScore < 0.25
+      averageScore < 0.2 ||
+      keywordCoverageScore < 0.2
     ) {
       // early return. Return to use message to the user.
       console.log("INSUFFICIENT: poor quantitative metrics");
       let reason = "";
       if (chunkCount === 0) {
         reason = "doesn't appear to cover this topic";
-      } else if (chunkCount < 2) {
-        reason = "only found very few relevant sections";
       } else if (totalWords < 100) {
         reason = "found limited detail on this topic";
       } else if (averageScore < 0.35) {
@@ -533,6 +569,7 @@ Provide a clear, detailed answer based on the context above. When referencing ti
       );
       if (llmCheck.sufficient) {
         // run the LLM with the RAG only context.
+        console.log("ambigious sufficient context", sufficientContextQuery);
         const stream = await llm.stream(sufficientContextQuery);
         const encoder = new TextEncoder();
         const readable = new ReadableStream({

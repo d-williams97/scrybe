@@ -647,7 +647,11 @@ export default function Home() {
                 </h3>
                 <DropdownMenu>
                   <DropdownMenuTrigger>
-                    <Button variant="outline" className="rounded-lg">
+                    <Button
+                      variant="outline"
+                      className="rounded-lg"
+                      disabled={isLoading}
+                    >
                       Download
                     </Button>
                   </DropdownMenuTrigger>
