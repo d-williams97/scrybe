@@ -2,7 +2,7 @@
 
 **Turn YouTube videos into notes in seconds.**
 
-Scrybe is an AI-powered tool that transcribes and summarises YouTube videos with customisable depth, style, and optional clickable timestamps. After generating notes, you can ask questions about the video content using an intelligent RAG (Retrieval-Augmented Generation) system.
+Scrybe is an AI-powered tool that summarises YouTube videos with customisable depth, style, and optional clickable timestamps. After generating notes, you can ask questions about the video content using a chat feature. Both summarisation and querying use an intelligent RAG (Retrieval-Augmented Generation) system.
 
 ## Features
 
@@ -83,26 +83,6 @@ npm run dev
 4. **RAG Retrieval** - Retrieves relevant chunks based on your summary preferences
 5. **AI Summarisation** - GPT-4o generates structured notes in your chosen style
 6. **Interactive Q&A** - Ask follow-up questions using the same RAG system
-
-## Project Structure
-
-```
-scrybe/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── youtubeQuery/    # RAG Q&A endpoint
-│   │   │   └── youtubeSummary/  # Summarisation endpoint
-│   │   ├── page.tsx              # Main UI
-│   │   └── types.ts              # Type definitions
-│   ├── components/
-│   │   ├── MarkdownRenderer.tsx  # Renders notes with clickable timestamps
-│   │   └── ui/                   # shadcn/ui components
-│   └── lib/
-│       └── utils.ts              # Utility functions
-├── public/                       # Static assets
-└── tests/                        # Jest tests
-```
 
 ## Key Technologies Explained
 
