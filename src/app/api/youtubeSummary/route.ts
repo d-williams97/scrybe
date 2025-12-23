@@ -113,39 +113,47 @@ ${text}
     // Use fallback title for now (can be replaced with API call later)
     const videoTitle = `YouTube Video Summary`;
 
-    // Fetch transcript with custom headers to avoid Vercel IP blocking
+    // Fetch transcript using ScraperAPI to avoid Vercel IP blocking
+    const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
     const defaultUserAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
     const transcriptRes = await fetchTranscript(ytURL, {
       userAgent: defaultUserAgent,
-      videoFetch: async ({ url, lang, userAgent }) => {
-        const ua = userAgent || defaultUserAgent;
+      videoFetch: async ({ url }) => {
+        if (SCRAPER_API_KEY) {
+          // Use ScraperAPI in production
+          const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(
+            url
+          )}`;
+          console.log("Fetching video page via ScraperAPI");
+          return fetch(proxyUrl);
+        }
+        // Fallback for local development (no proxy)
+        console.log("Fetching video page directly (local dev)");
         return fetch(url, {
           headers: {
-            "User-Agent": ua,
+            "User-Agent": defaultUserAgent,
             Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-            "Accept-Language": lang || "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Cache-Control": "max-age=0",
-            Connection: "keep-alive",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "none",
-            "Sec-Fetch-User": "?1",
-            "Upgrade-Insecure-Requests": "1",
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           },
         });
       },
-      transcriptFetch: async ({ url, lang, userAgent }) => {
-        const ua = userAgent || defaultUserAgent;
+      transcriptFetch: async ({ url }) => {
+        if (SCRAPER_API_KEY) {
+          // Use ScraperAPI in production
+          const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(
+            url
+          )}`;
+          console.log("Fetching transcript via ScraperAPI");
+          return fetch(proxyUrl);
+        }
+        // Fallback for local development (no proxy)
+        console.log("Fetching transcript directly (local dev)");
         return fetch(url, {
           headers: {
-            "User-Agent": ua,
+            "User-Agent": defaultUserAgent,
             Accept: "*/*",
-            "Accept-Language": lang || "en-US,en;q=0.9",
-            Referer: "https://www.youtube.com/",
           },
         });
       },
