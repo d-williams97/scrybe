@@ -115,6 +115,7 @@ ${text}
 
     // Fetch transcript using ScraperAPI to avoid Vercel IP blocking
     const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
+    console.log("SCRAPER_API_KEY exists:", !!SCRAPER_API_KEY);
     const defaultUserAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
