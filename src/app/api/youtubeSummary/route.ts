@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 // import { OpenAI } from "openai";
 // import { jobManager } from "@/lib/jobManager";
 import type { CreateYoutubeJobRequest } from "@/app/types";
-import ytdl from "ytdl-core";
+// import ytdl from "ytdl-core"; // Temporarily disabled - causes 410 errors on Vercel
 import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 import { SummaryDepth, Style } from "@/app/types";
@@ -11,6 +11,23 @@ import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
 export const runtime = "nodejs";
+
+// Helper function to extract YouTube video ID from various URL formats
+function extractYouTubeVideoId(url: string): string | null {
+  // Handle various YouTube URL formats
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+    /^([a-zA-Z0-9_-]{11})$/, // Direct video ID
+  ];
+
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as CreateYoutubeJobRequest;
@@ -79,19 +96,22 @@ ${text}
       return NextResponse.json({ error: "Missing url" }, { status: 422 }); // unprocessable content
     }
 
-    const isValid = ytdl.validateURL(ytURL);
-    if (!isValid) {
-      console.log("not valid");
+    // Extract video ID from URL
+    const extractedVideoId = extractYouTubeVideoId(ytURL);
+    if (!extractedVideoId) {
+      console.log("Invalid YouTube URL - could not extract video ID");
       return NextResponse.json(
         { error: "Invalid YouTube URL" },
         { status: 400 }
       );
     }
 
-    // get meta data of video if video is too long need to reject and send back an error
-    const videoInfo = await ytdl.getBasicInfo(ytURL);
-    const videDetails = videoInfo.videoDetails;
-    const videoTitle = videDetails.title;
+    // At this point, videoId is guaranteed to be a string
+    const videoId: string = extractedVideoId;
+    console.log("videoId", videoId);
+
+    // Use fallback title for now (can be replaced with API call later)
+    const videoTitle = `YouTube Video Summary`;
 
     const transcriptRes = await fetchTranscript(ytURL);
     if (!Array.isArray(transcriptRes) || transcriptRes.length === 0)
@@ -99,6 +119,9 @@ ${text}
         { error: "Transcript not found" },
         { status: 404 }
       ); // resource not found
+
+    console.log("transcriptRes", transcriptRes);
+    // throw new Error("test");
 
     // console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
@@ -191,10 +214,10 @@ ${text}
           chunkIndex: index,
           offset: minOffset,
           duration: maxEndTime - minOffset,
-          videoId: videoInfo.videoDetails.videoId,
+          videoId: videoId,
           videoTitle: videoTitle,
         },
-        id: `${videoInfo.videoDetails.videoId}-chunk-${index}`, // Add unique ID for Pinecone
+        id: `${videoId}-chunk-${index}`, // Add unique ID for Pinecone
       };
     });
 
@@ -235,7 +258,7 @@ ${text}
     });
 
     // Upsert vectors into Pinecone with namespace per video
-    const namespace = `youtube-${videoInfo.videoDetails.videoId}`;
+    const namespace = `youtube-${videoId}`;
 
     // Pinecone upsert can handle batches, but for large batches, chunk them
     // console.log("vectorsToUpsert length", vectorsToUpsert.length);
@@ -246,7 +269,7 @@ ${text}
     }
 
     console.log(
-      `Successfully stored ${vectorsToUpsert.length} chunks in Pinecone namespace ${namespace} for video ${videoInfo.videoDetails.videoId}`
+      `Successfully stored ${vectorsToUpsert.length} chunks in Pinecone namespace ${namespace} for video ${videoId}`
     );
 
     const vectorStore = await PineconeStore.fromExistingIndex(embeddingsModel, {
@@ -336,9 +359,7 @@ ${text}
               controller.enqueue(encoder.encode(content as string)); // sends a chunk to the client immediately.
             }
           }
-          controller.enqueue(
-            encoder.encode(`\n__VIDEO_ID__:${videoInfo.videoDetails.videoId}`)
-          );
+          controller.enqueue(encoder.encode(`\n__VIDEO_ID__:${videoId}`));
           controller.close(); // signals the stream is complete.
         } catch (error) {
           controller.error(error);
