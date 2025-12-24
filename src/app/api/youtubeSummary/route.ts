@@ -112,6 +112,7 @@ ${text}
     // Use fallback title for now (can be replaced with API call late
     const videoTitle = `YouTube Video Summary`;
 
+    console.log("supadata api key", process.env.SUPADATA_API_KEY);
     // Initialize the client
     const supadata = new Supadata({
       apiKey: process.env.SUPADATA_API_KEY as string,
