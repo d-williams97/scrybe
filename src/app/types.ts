@@ -46,6 +46,17 @@ export interface CreateYoutubeJobRequest {
   style: SummaryStyle;
   includeTimestamps: boolean;
 }
+export interface SupadataTranscriptContent {
+  text: string;
+  offset: number;
+  duration: number;
+}
+
+export interface SupadataTranscript {
+  availableLangs: string[];
+  content: SupadataTranscriptContent[];
+  lang: string;
+}
 
 export interface CreateJobResponse {
   jobId: string;

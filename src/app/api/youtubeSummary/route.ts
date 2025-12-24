@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 // import { OpenAI } from "openai";
-// import { jobManager } from "@/lib/jobManager";
-import type { CreateYoutubeJobRequest } from "@/app/types";
 // import ytdl from "ytdl-core"; // Temporarily disabled - causes 410 errors on Vercel
-import { fetchTranscript } from "youtube-transcript-plus";
+// import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
-import { SummaryDepth, Style } from "@/app/types";
+import { SummaryDepth, Style, CreateYoutubeJobRequest } from "@/app/types";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai";
 import { PineconeStore } from "@langchain/pinecone";
 export const runtime = "nodejs";
+import { Supadata, Transcript, TranscriptChunk } from "@supadata/js";
 
 // Helper function to extract YouTube video ID from various URL formats
 function extractYouTubeVideoId(url: string): string | null {
@@ -110,66 +109,35 @@ ${text}
     const videoId: string = extractedVideoId;
     console.log("videoId", videoId);
 
-    // Use fallback title for now (can be replaced with API call later)
+    // Use fallback title for now (can be replaced with API call late
     const videoTitle = `YouTube Video Summary`;
 
-    // Fetch transcript using ScraperAPI to avoid Vercel IP blocking
-    const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;
-    console.log("SCRAPER_API_KEY exists:", !!SCRAPER_API_KEY);
-    const defaultUserAgent =
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-
-    const transcriptRes = await fetchTranscript(ytURL, {
-      userAgent: defaultUserAgent,
-      videoFetch: async ({ url }) => {
-        if (SCRAPER_API_KEY) {
-          // Use ScraperAPI in production
-          const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(
-            url
-          )}`;
-          console.log("Fetching video page via ScraperAPI");
-          return fetch(proxyUrl);
-        }
-        // Fallback for local development (no proxy)
-        console.log("Fetching video page directly (local dev)");
-        return fetch(url, {
-          headers: {
-            "User-Agent": defaultUserAgent,
-            Accept:
-              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          },
-        });
-      },
-      transcriptFetch: async ({ url }) => {
-        if (SCRAPER_API_KEY) {
-          // Use ScraperAPI in production
-          const proxyUrl = `http://api.scraperapi.com?api_key=${SCRAPER_API_KEY}&url=${encodeURIComponent(
-            url
-          )}`;
-          console.log("Fetching transcript via ScraperAPI");
-          return fetch(proxyUrl);
-        }
-        // Fallback for local development (no proxy)
-        console.log("Fetching transcript directly (local dev)");
-        return fetch(url, {
-          headers: {
-            "User-Agent": defaultUserAgent,
-            Accept: "*/*",
-          },
-        });
-      },
+    // Initialize the client
+    const supadata = new Supadata({
+      apiKey: process.env.SUPADATA_API_KEY as string,
     });
 
-    if (!Array.isArray(transcriptRes) || transcriptRes.length === 0)
+    console.log("ytURL", ytURL);
+    // Get transcript from any supported platform (YouTube, TikTok, Instagram, X (Twitter)) or file
+    const transcriptResult = await supadata.transcript({
+      url: ytURL,
+    });
+
+    const transcriptContent = (transcriptResult as Transcript)
+      ?.content as TranscriptChunk[];
+
+    if (
+      !transcriptContent ||
+      !Array.isArray(transcriptContent) ||
+      transcriptContent?.length === 0
+    ) {
+      console.log("Transcript not found");
       return NextResponse.json(
         { error: "Transcript not found" },
         { status: 404 }
-      ); // resource not found
+      );
+    }
 
-    console.log("transcriptRes", transcriptRes);
-    // throw new Error("test");
-
-    // console.log("transcriptRes", transcriptRes);
     // decode via double decoding function
     const deepDecode = (s: string) => {
       let prev = s ?? "";
@@ -183,7 +151,7 @@ ${text}
     };
 
     // Normalise the transcript
-    const decodedTranscript = transcriptRes.map((segment) => ({
+    const decodedTranscript = transcriptContent.map((segment) => ({
       text: deepDecode(segment.text),
       offset: segment.offset,
       duration: segment.duration,
