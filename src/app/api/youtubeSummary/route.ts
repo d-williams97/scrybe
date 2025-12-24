@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 // import { OpenAI } from "openai";
-// import ytdl from "ytdl-core"; // Temporarily disabled - causes 410 errors on Vercel
-// import { fetchTranscript } from "youtube-transcript-plus";
 import { decode } from "he";
 import { SummaryDepth, Style, CreateYoutubeJobRequest } from "@/app/types";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
@@ -90,12 +88,23 @@ ${text}
 `.trim();
   }
 
+  // decode via double decoding function
+  const deepDecode = (s: string) => {
+    let prev = s ?? "";
+    for (let i = 0; i < 2; i++) {
+      // 2–3 passes are usually enough
+      const next = decode(prev);
+      if (next === prev) break;
+      prev = next;
+    }
+    return prev;
+  };
+
   try {
     if (!ytURL) {
       return NextResponse.json({ error: "Missing url" }, { status: 422 }); // unprocessable content
     }
 
-    // Extract video ID from URL
     const extractedVideoId = extractYouTubeVideoId(ytURL);
     if (!extractedVideoId) {
       console.log("Invalid YouTube URL - could not extract video ID");
@@ -104,22 +113,12 @@ ${text}
         { status: 400 }
       );
     }
-
-    // At this point, videoId is guaranteed to be a string
     const videoId: string = extractedVideoId;
-    console.log("videoId", videoId);
 
-    // Use fallback title for now (can be replaced with API call late
-    const videoTitle = `YouTube Video Summary`;
-
-    console.log("supadata api key", process.env.SUPADATA_API_KEY);
-    // Initialize the client
     const supadata = new Supadata({
       apiKey: process.env.SUPADATA_API_KEY as string,
     });
 
-    console.log("ytURL", ytURL);
-    // Get transcript from any supported platform (YouTube, TikTok, Instagram, X (Twitter)) or file
     const transcriptResult = await supadata.transcript({
       url: ytURL,
     });
@@ -139,17 +138,10 @@ ${text}
       );
     }
 
-    // decode via double decoding function
-    const deepDecode = (s: string) => {
-      let prev = s ?? "";
-      for (let i = 0; i < 2; i++) {
-        // 2–3 passes are usually enough
-        const next = decode(prev);
-        if (next === prev) break;
-        prev = next;
-      }
-      return prev;
-    };
+    const metadata = await supadata.metadata({
+      url: ytURL,
+    });
+    const videoTitle = metadata?.title ?? "YouTube Video Summary";
 
     // Normalise the transcript
     const decodedTranscript = transcriptContent.map((segment) => ({
@@ -236,21 +228,19 @@ ${text}
       };
     });
 
-    // embed the chunks with metadata
-
     const pc = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY as string,
     });
 
     const index = pc.Index(process.env.PINECONE_INDEX_NAME as string);
 
-    // Initialize OpenAI embeddings model
+    // Initialise OpenAI embeddings model
     const embeddingsModel = new OpenAIEmbeddings({
       modelName: "text-embedding-3-small",
       openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    // Embed all chunks
+    // Embed all chunks with metadata
     const chunkTexts = chunksWithMetadata.map((chunk) => chunk.pageContent);
     const chunkEmbeddings = await embeddingsModel.embedDocuments(chunkTexts);
 
@@ -276,7 +266,6 @@ ${text}
     const namespace = `youtube-${videoId}`;
 
     // Pinecone upsert can handle batches, but for large batches, chunk them
-    // console.log("vectorsToUpsert length", vectorsToUpsert.length);
     const batchSize = 100; // max batch size for Pinecone upsert is 1000 and must be < 2 mb
     for (let i = 0; i < vectorsToUpsert.length; i += batchSize) {
       const batch = vectorsToUpsert.slice(i, i + batchSize);
@@ -318,7 +307,7 @@ ${text}
     const sortedRelevantChunks = relevantChunks.sort(
       (a, b) => a.metadata.offset - b.metadata.offset
     );
-    console.log("sortedRelevantChunks", sortedRelevantChunks);
+    // console.log("sortedRelevantChunks", sortedRelevantChunks);
 
     const formattedRelevantChunks = sortedRelevantChunks
       .map((chunk) => {
@@ -328,14 +317,14 @@ ${text}
           .trim();
         const metadata = chunk.metadata;
 
-        // calculate minuets and seconds
         if (
           includeTimestamps &&
           metadata.offset !== undefined &&
           metadata.offset !== null
         ) {
-          const minutes = Math.floor(metadata.offset / 60);
-          const seconds = Math.floor(metadata.offset % 60);
+          const totalSeconds = Math.floor(metadata.offset / 1000);
+          const minutes = Math.floor(totalSeconds / 60);
+          const seconds = Math.floor(totalSeconds % 60);
           const timestamp = `(${String(minutes).padStart(2, "0")}:${String(
             seconds
           ).padStart(2, "0")})`;
@@ -361,7 +350,7 @@ ${text}
       openAIApiKey: process.env.OPENAI_API_KEY,
     });
 
-    const stream = await llm.stream(summaryPrompt); // gte llm stream
+    const stream = await llm.stream(summaryPrompt); // get llm stream
     const encoder = new TextEncoder(); // Converts JavaScript strings into Uint8Array bytes for the stream.
     const readable = new ReadableStream({
       // ReadableStream: a Web Streams API object that produces chunks over time.

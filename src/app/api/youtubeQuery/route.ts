@@ -379,8 +379,9 @@ export async function POST(req: NextRequest) {
           .trim();
         // calculate minutes and seconds
         if (metadata?.offset) {
-          const minutes = Math.floor(metadata.offset / 60);
-          const seconds = Math.floor(metadata.offset % 60);
+          const totalSeconds = Math.floor(metadata.offset / 1000);
+          const minutes = Math.floor(totalSeconds / 60);
+          const seconds = Math.floor(totalSeconds % 60);
           const timestamp = `(${String(minutes).padStart(2, "0")}:${String(
             seconds
           ).padStart(2, "0")})`;
