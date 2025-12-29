@@ -173,23 +173,43 @@ ${text}
           offset: segment.offset, // when the segment starts in the video
           endTime: segment.offset + segment.duration,
         });
-
         currentChar = endChar + 1; // +1 for space between segments
-
         return cleanText;
       })
       .filter(Boolean)
       .join(" ");
 
+    // Calculate average segment size
+    const avgSegmentSize =
+      decodedTranscript.reduce((sum, seg) => sum + seg.text.length, 0) /
+      decodedTranscript.length;
+    console.log("Average segment size:", avgSegmentSize);
+
+    // Target: 10-12 segments per chunk for good timestamp accuracy
+    const targetSegmentsPerChunk = 10;
+    const dynamicChunkSize = Math.round(
+      avgSegmentSize * targetSegmentsPerChunk
+    );
+    console.log("Dynamic chunk size:", dynamicChunkSize);
+
+    // Add min/max bounds to prevent extremes
+    const minChunkSize = 300;
+    const maxChunkSize = 600;
+    const finalChunkSize = Math.max(
+      minChunkSize,
+      Math.min(dynamicChunkSize, maxChunkSize)
+    );
+
+    console.log("Final chunk size:", finalChunkSize);
+
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000, // The maximum size of a chunk, where size is determined by the length_function
-      chunkOverlap: 200, // Target overlap between chunks. Overlapping chunks helps to mitigate loss of information when context is divided between chunks.
-      // length_function: "words", // The function to use to determine the length of a chunk.
-      // is_separator_regex: Whether the separator list (defaulting to ["\n\n", "\n", " ", ""]) should be interpreted as regex.
+      chunkSize: finalChunkSize,
+      chunkOverlap: Math.round(finalChunkSize * 0.2), // 20% overlap
     });
 
     // creating langchain document objects
     const chunks = await splitter.createDocuments([fullText]);
+    console.log("chunks length", chunks.length);
     // add metadata to the chunks
 
     const chunksWithMetadata = chunks.map((chunk, index) => {
@@ -246,8 +266,6 @@ ${text}
 
     // Prepare data for Pinecone upsert
     const vectorsToUpsert = chunksWithMetadata.map((chunk, index) => {
-      if (index < 8) {
-      }
       return {
         id: chunk.id,
         values: chunkEmbeddings[index],
@@ -283,13 +301,13 @@ ${text}
 
     // scale the k based on the length of the video.
     const totalChunks = chunksWithMetadata.length;
-    const kPercentage = depth === "brief" ? 0.08 : 0.15; // 8% or 15%
+    const kPercentage = depth === "brief" ? 0.12 : 0.2; // 8% or 15%
     const calculatedK = Math.ceil(totalChunks * kPercentage);
-    console.log("calculateK", calculatedK);
+    console.log("calculatedK", calculatedK);
 
-    // Apply sensible max and min k bounds
-    const minK = depth === "brief" ? 6 : 10;
-    const maxK = depth === "brief" ? 20 : 35;
+    // Absolute bounds to prevent extremes. Hard coded for better control.
+    const minK = depth === "brief" ? 10 : 15;
+    const maxK = depth === "brief" ? 50 : 80;
     const finalK = Math.max(minK, Math.min(calculatedK, maxK));
     console.log("finalK", finalK);
 
@@ -307,7 +325,7 @@ ${text}
     const sortedRelevantChunks = relevantChunks.sort(
       (a, b) => a.metadata.offset - b.metadata.offset
     );
-    // console.log("sortedRelevantChunks", sortedRelevantChunks);
+    console.log("sortedRelevantChunks", sortedRelevantChunks);
 
     const formattedRelevantChunks = sortedRelevantChunks
       .map((chunk) => {
@@ -334,6 +352,8 @@ ${text}
         }
       })
       .join("\n\n");
+
+    console.log("formattedRelevantChunks", formattedRelevantChunks);
 
     const summaryPrompt = buildSummaryPrompt(
       formattedRelevantChunks,
