@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Scrybe — from videos to notes in seconds",
   description:
-    "Transcribe and summarize YouTube or uploads into editable notes.",
+    "Scrybe is an AI-powered tool that summarises YouTube videos with customisable depth, style, and optional clickable timestamps.",
 };
 
 export default function RootLayout({
@@ -29,6 +30,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <Toaster position="top-right" richColors duration={3000} />
       </body>
     </html>
   );

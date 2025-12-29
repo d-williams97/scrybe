@@ -398,11 +398,22 @@ ${text}
         "Transfer-Encoding": "chunked",
       },
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error(e);
-    return NextResponse.json(
-      { error: "Internal server error: " + e },
-      { status: 500 }
-    );
+    // Handle Supadata errors specifically
+    if (
+      e?.error === "limit-exceeded" ||
+      e?.message?.includes("limit-exceeded")
+    ) {
+      return NextResponse.json(
+        { error: "API rate limit exceeded. Please try again in a moment." },
+        { status: 429 }
+      );
+    } else {
+      return NextResponse.json(
+        { error: "Internal server error: " + e },
+        { status: 500 }
+      );
+    }
   }
 }

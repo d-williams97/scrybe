@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MarkdownRenderer } from "@/components/MarkdownRenderer";
 import YouTube, { YouTubeEvent } from "react-youtube";
+import { toast } from "sonner";
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -341,9 +342,25 @@ export default function Home() {
           includeTimestamps,
         }),
       });
-      if (!res.ok || !res.body) {
+
+      // Check if response is an error (JSON response)
+      if (!res.ok) {
         setIsLoading(false);
-        throw new Error("Failed to start job");
+        try {
+          const errorData = await res.json();
+          const errorMessage = errorData.error || "An error occurred";
+          toast.error(errorMessage);
+        } catch {
+          // If error response is not JSON, show generic error
+          toast.error("Failed to summarise video. Please try again.");
+        }
+        return;
+      }
+
+      if (!res.body) {
+        setIsLoading(false);
+        toast.error("Failed to start summarising video");
+        return;
       }
 
       const reader = res.body.getReader(); // getReader: a Web Streams API method that returns a reader object that allows you to read the stream.
@@ -372,9 +389,10 @@ export default function Home() {
         }
       }
       setIsLoading(false);
-    } catch {
-      console.log("job failed");
+    } catch (error) {
+      console.error("Error summarising video:", error);
       setIsLoading(false);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 
