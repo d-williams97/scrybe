@@ -398,12 +398,12 @@ ${text}
         "Transfer-Encoding": "chunked",
       },
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error(e);
     // Handle Supadata errors specifically
     if (
-      e?.error === "limit-exceeded" ||
-      e?.message?.includes("limit-exceeded")
+      (e as { error: string })?.error === "limit-exceeded" ||
+      (e as { message: string })?.message?.includes("limit-exceeded")
     ) {
       return NextResponse.json(
         { error: "API rate limit exceeded. Please try again in a moment." },
